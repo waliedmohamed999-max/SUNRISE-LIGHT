@@ -15,6 +15,19 @@ export interface UploadedAssetInfo {
   originalName: string;
 }
 
+/** Ready text style (title, ingredients block …) used by "add text". */
+export interface TextStyle {
+  text: string;
+  sizeFrac: number;
+  bold?: boolean;
+  color?: string;
+  yFrac?: number;
+  align?: "start" | "center" | "end";
+  font?: import("@/design/document").FontKey;
+  letterSpacing?: number;
+  lineHeight?: number;
+}
+
 export interface StudioApi {
   t: Dict;
   locale: "ar" | "en";
@@ -38,7 +51,8 @@ export interface StudioApi {
   dimIssues: ValidationIssue[];
   applyDims: (d: Dimensions) => void;
   switchTemplate: (code: string) => void;
-  addText: () => void;
+  addText: (style?: TextStyle) => void;
+  addCode: (kind: "qr" | "ean13") => void;
   updateElement: (id: string, patch: Partial<DesignElement>, coalesceKey?: string) => void;
   removeElement: (id: string) => void;
   duplicateElement: (id: string) => void;

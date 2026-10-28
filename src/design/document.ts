@@ -36,6 +36,10 @@ const baseElement = z.object({
   height: z.number().finite().positive().max(5000),
   rotation: z.number().finite().min(-360).max(360),
   locked: z.boolean().optional(),
+  /** 0.05–1 */
+  opacity: z.number().min(0.05).max(1).optional(),
+  flipX: z.boolean().optional(),
+  flipY: z.boolean().optional(),
 });
 
 export const imageElementSchema = baseElement.extend({
@@ -44,6 +48,8 @@ export const imageElementSchema = baseElement.extend({
   mime: z.enum(["image/png", "image/jpeg", "image/svg+xml"]),
   naturalWidth: z.number().int().positive(),
   naturalHeight: z.number().int().positive(),
+  /** recolour the whole logo in one ink (one-colour print, white logo on dark board) */
+  tint: hex.optional(),
 });
 
 export const textElementSchema = baseElement.extend({
@@ -54,6 +60,12 @@ export const textElementSchema = baseElement.extend({
   color: hex,
   bold: z.boolean(),
   align: z.enum(["start", "center", "end"]),
+  /** em units */
+  letterSpacing: z.number().min(-0.1).max(1).optional(),
+  lineHeight: z.number().min(0.8).max(3).optional(),
+  strokeColor: hex.optional(),
+  /** outline width as a fraction of the font size (0–0.2) */
+  strokeWidth: z.number().min(0).max(0.2).optional(),
 });
 
 export const iconElementSchema = baseElement.extend({
@@ -62,7 +74,16 @@ export const iconElementSchema = baseElement.extend({
   color: hex,
 });
 
-export const elementSchema = z.discriminatedUnion("type", [imageElementSchema, textElementSchema, iconElementSchema]);
+export const codeElementSchema = baseElement.extend({
+  type: z.literal("code"),
+  kind: z.enum(["qr", "ean13"]),
+  value: z.string().max(300),
+  color: hex,
+  background: hex.nullable(),
+});
+
+export const elementSchema = z.discriminatedUnion("type", [imageElementSchema, textElementSchema, iconElementSchema, codeElementSchema]);
+export type CodeElement = z.infer<typeof codeElementSchema>;
 export type DesignElement = z.infer<typeof elementSchema>;
 export type ImageElement = z.infer<typeof imageElementSchema>;
 export type TextElement = z.infer<typeof textElementSchema>;
@@ -77,8 +98,17 @@ export const COATING_LABELS: Record<Coating, { ar: string; en: string }> = {
   "soft-touch": { ar: "ناعم الملمس", en: "Soft-touch" },
 };
 
+export const PATTERNS = ["stripes", "dots", "grid", "chevron", "diagonal"] as const;
+export const faceFillSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("gradient"), from: hex, to: hex, angle: z.number().min(0).max(360) }),
+  z.object({ type: z.literal("pattern"), pattern: z.enum(PATTERNS), fg: hex, bg: hex, scale: z.number().min(2).max(60) }),
+]);
+export type FaceFill = z.infer<typeof faceFillSchema>;
+
 const surfaceSchema = z.object({
   background: hex.nullable(),
+  /** gradient or pattern drawn over the background colour */
+  fill: faceFillSchema.optional(),
   /** Whole-face lamination / varnish (shown in the 3D preview) */
   coating: z.enum(COATINGS).optional(),
   elements: z.array(elementSchema).max(60),

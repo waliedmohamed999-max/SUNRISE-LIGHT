@@ -5,9 +5,10 @@ import { Group, Layer, Line, Rect, Shape, Stage, Transformer } from "react-konva
 import type Konva from "konva";
 import type { DesignElement, SurfaceDoc } from "@/design/document";
 import { isOutsideSafeArea } from "@/design/document";
-import { drawElement, type ImageMap } from "@/design/render";
+import { drawElement, drawFaceFill, type ImageMap } from "@/design/render";
 import { ICONS } from "@/design/icons";
-import type { SurfaceSpec } from "@/packaging/types";
+import { drawStructure } from "@/design/finishing";
+import type { BoxStyle, SurfaceSpec } from "@/packaging/types";
 
 export interface SurfaceEditorProps {
   spec: SurfaceSpec;
@@ -23,6 +24,8 @@ export interface SurfaceEditorProps {
   zoom: number;
   onZoom: (z: number) => void;
   labels: { safe: string; edge: string };
+  /** order add-ons drawn as a see-through guide (window, ribbon, holes …) */
+  structure?: { codes: string[]; boxStyle: BoxStyle };
   readOnly?: boolean;
 }
 
@@ -113,6 +116,15 @@ export default function SurfaceEditor(p: SurfaceEditorProps) {
           <Group x={ox} y={oy}>
             {/* board */}
             <Rect name="surface-bg" width={p.spec.w * s} height={p.spec.h * s} fill={p.surface.background ?? p.materialColor} shadowColor="#1d2235" shadowOpacity={0.18} shadowBlur={28} shadowOffsetY={10} />
+            {p.surface.fill && (
+              <Shape
+                listening={false}
+                sceneFunc={(con) => {
+                  const fill = p.surface.fill;
+                  if (fill) drawFaceFill((con as unknown as { _context: CanvasRenderingContext2D })._context, fill, p.spec.w * s, p.spec.h * s, s);
+                }}
+              />
+            )}
             {gridLines.map((pts, i) => (
               <Line key={i} points={pts} stroke="#2F357C" opacity={0.08} strokeWidth={1} listening={false} />
             ))}
@@ -177,6 +189,16 @@ export default function SurfaceEditor(p: SurfaceEditorProps) {
                 />
               ))}
             </Group>
+            {!!p.structure?.codes.length && (
+              <Shape
+                listening={false}
+                opacity={0.55}
+                sceneFunc={(con) => {
+                  const st = p.structure;
+                  if (st) drawStructure((con as unknown as { _context: CanvasRenderingContext2D })._context, p.spec.key, st.codes, st.boxStyle, p.spec.w, p.spec.h, s);
+                }}
+              />
+            )}
             {/* safe area + edge */}
             <Rect x={p.safeMargin * s} y={p.safeMargin * s} width={(p.spec.w - p.safeMargin * 2) * s} height={(p.spec.h - p.safeMargin * 2) * s} stroke="#EA5B32" strokeWidth={1} dash={[6, 5]} listening={false} />
             <Rect width={p.spec.w * s} height={p.spec.h * s} stroke="#1d6fd6" strokeWidth={1.2} dash={[10, 6]} listening={false} />

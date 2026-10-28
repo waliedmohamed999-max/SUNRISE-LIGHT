@@ -25,6 +25,7 @@ import { useAssetImages, useDebouncedEffect, useDesignHistory, useFontsReady } f
 import { canvasToBlob, downloadBlob, measureText, renderFinishMaps, renderIsoThumbnail, renderSurfaceCanvases } from "@/design/render";
 import type { FinishMaps } from "@/components/three/BoxModel";
 import { ICONS, type IconKey } from "@/design/icons";
+import type { TextStyle } from "./context";
 import { getEngine, hasErrors, validateDimensions } from "@/packaging/engine";
 import { dielineToSvg } from "@/packaging/svg";
 import { SURFACE_KEYS, type Dimensions, type SurfaceKey, type ValidationIssue } from "@/packaging/types";
@@ -124,6 +125,7 @@ export default function StudioApp({
   const [leftTab, setLeftTab] = useState<LeftTab>("templates");
   const [mobileSheet, setMobileSheet] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [unit, setUnit] = useState<"mm" | "cm">("mm");
   const [dimIssues, setDimIssues] = useState<ValidationIssue[]>([]);
   const [loginPrompt, setLoginPrompt] = useState(false);
@@ -173,7 +175,7 @@ export default function StudioApp({
         return;
       }
       const maxPx = 1024;
-      const shared = `${materialColor}|${textured}|${imagesVersion}|${fontsReady}`;
+      const shared = `${materialColor}|${textured}|${imagesVersion}|${fontsReady}|${engine.boxStyle}|${doc.finishingCodes.join(",")}`;
       const changed = specs.filter((s) => {
         const sig = `${s.w}x${s.h}|${shared}|${JSON.stringify(doc.surfaces[s.key])}`;
         if (faceSigs.current[s.key] === sig && canvasesRef.current?.[s.key]) return false;
@@ -181,7 +183,7 @@ export default function StudioApp({
         return true;
       });
       if (!changed.length) return;
-      const fresh = renderSurfaceCanvases(doc, changed, { materialColor, textured, images, maxPx }, canvasesRef.current ?? undefined);
+      const fresh = renderSurfaceCanvases(doc, changed, { materialColor, textured, images, maxPx, structure: { codes: doc.finishingCodes, boxStyle: engine.boxStyle } }, canvasesRef.current ?? undefined);
       canvasesRef.current = { ...(canvasesRef.current ?? {}), ...fresh } as Record<SurfaceKey, HTMLCanvasElement>;
       const maps = renderFinishMaps(doc, changed, images);
       const nextMaps: FinishMaps = { ...(finishRef.current ?? {}) };
@@ -198,7 +200,7 @@ export default function StudioApp({
       setTexVersion((v) => v + 1);
     });
     return () => cancelAnimationFrame(id);
-  }, [doc, specs, materialColor, textured, images, imagesVersion, fontsReady, settle]);
+  }, [doc, specs, materialColor, textured, images, imagesVersion, fontsReady, settle, engine.boxStyle]);
 
   /* ── load local draft / uploads ── */
   useEffect(() => {
@@ -299,7 +301,7 @@ export default function StudioApp({
           els.map((el) => {
             if (el.id !== id) return el;
             const next = { ...el, ...patch } as DesignElement;
-            if (next.type === "text" && !("width" in patch) && ("text" in patch || "font" in patch || "bold" in patch || "fontSizeMm" in patch)) {
+            if (next.type === "text" && !("width" in patch) && ["text", "font", "bold", "fontSizeMm", "letterSpacing", "lineHeight", "strokeWidth"].some((k) => k in patch)) {
               const m = measureText(next as TextElement);
               return { ...next, width: m.width, height: m.height };
             }
@@ -398,7 +400,7 @@ export default function StudioApp({
         const surfaces = { ...d.surfaces };
         for (const s of specs) {
           if (s.key === surfaceKey || !printable(s.key) || (target !== "all" && s.key !== target)) continue;
-          surfaces[s.key] = { background: from.background, coating: from.coating, elements: from.elements.map((el) => fitTo(el, spec, s, nanoid(10))) };
+          surfaces[s.key] = { background: from.background, coating: from.coating, fill: from.fill, elements: from.elements.map((el) => fitTo(el, spec, s, nanoid(10))) };
         }
         return { ...d, surfaces };
       });
@@ -422,16 +424,57 @@ export default function StudioApp({
     [doc.surfaces, surfaceKey, specs, printable, spec, fitTo, update],
   );
 
-  const addText = useCallback(() => {
+  const addText = useCallback((style?: TextStyle) => {
     if (!printable(surfaceKey)) return;
-    const fontSizeMm = Math.round(Math.min(Math.max(Math.min(spec.w, spec.h) * 0.12, 4), 60) * 10) / 10;
-    const base = { text: locale === "ar" ? "علامتك التجارية" : "Your brand", font: locale === "ar" ? "plexArabic" : "inter", bold: true, fontSizeMm } as const;
+    const sizeFrac = style?.sizeFrac ?? 0.12;
+    const fontSizeMm = Math.round(Math.min(Math.max(Math.min(spec.w, spec.h) * sizeFrac, 2.5), 60) * 10) / 10;
+    const text = style?.text ?? (locale === "ar" ? "علامتك التجارية" : "Your brand");
+    const font: TextElement["font"] = style?.font ?? (/[\u0600-\u06FF]/.test(text) || locale === "ar" ? "plexArabic" : "inter");
+    const base = { text, font, bold: style?.bold ?? true, fontSizeMm, letterSpacing: style?.letterSpacing, lineHeight: style?.lineHeight };
     const m = measureText(base);
-    const el: TextElement = { id: nanoid(10), type: "text", ...base, color: "#14283F", align: "center", x: spec.w / 2, y: spec.h / 2, width: m.width, height: m.height, rotation: 0 };
+    const el: TextElement = {
+      id: nanoid(10),
+      type: "text",
+      ...base,
+      color: style?.color ?? "#2F357C",
+      align: style?.align ?? "center",
+      x: spec.w / 2,
+      y: spec.h * (style?.yFrac ?? 0.5),
+      width: Math.min(m.width, spec.w),
+      height: m.height,
+      rotation: 0,
+    };
     updateSurface(surfaceKey, (els) => [...els, el]);
     setSelectedId(el.id);
     setView((v) => (v === "2d" || v === "split" ? v : "split"));
   }, [printable, surfaceKey, spec, locale, updateSurface]);
+
+  const addCode = useCallback(
+    (kind: "qr" | "ean13") => {
+      if (!printable(surfaceKey)) return;
+      const side = Math.round(Math.min(spec.w, spec.h) * 0.35 * 10) / 10;
+      const el: DesignElement = {
+        id: nanoid(10),
+        type: "code",
+        kind,
+        // QR: the customer types their link; EAN: 12 digits get their check digit automatically
+        value: kind === "qr" ? "https://" : "629000000000",
+        color: "#1D2235",
+        background: "#FFFFFF",
+        x: spec.w / 2,
+        y: spec.h / 2,
+        width: kind === "qr" ? side : Math.min(spec.w * 0.6, side * 1.6),
+        height: kind === "qr" ? side : side * 0.9,
+        rotation: 0,
+      };
+      updateSurface(surfaceKey, (els) => [...els, el]);
+      setSelectedId(el.id);
+    },
+    [printable, surfaceKey, spec, updateSurface],
+  );
+
+  /* clipboard (Ctrl+C / Ctrl+V) — paste lands on the active face, fitted to it */
+  const clipboard = useRef<{ el: DesignElement; from: { w: number; h: number } } | null>(null);
 
   const addIcon = useCallback(
     (icon: IconKey, color: string) => {
@@ -674,6 +717,16 @@ export default function StudioApp({
       } else if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         void save();
+      } else if (selected && mod && e.key.toLowerCase() === "c") {
+        clipboard.current = { el: selected, from: { w: spec.w, h: spec.h } };
+        setToast({ tone: "ok", text: locale === "ar" ? "نُسخ العنصر — الصقه على أي وجه بـ Ctrl+V" : "Copied — paste on any face with Ctrl+V" });
+      } else if (mod && e.key.toLowerCase() === "v" && clipboard.current && printable(surfaceKey)) {
+        e.preventDefault();
+        const pasted = fitTo(clipboard.current.el, clipboard.current.from, spec, nanoid(10));
+        updateSurface(surfaceKey, (els) => [...els, pasted]);
+        setSelectedId(pasted.id);
+      } else if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+        setShortcutsOpen((o) => !o);
       } else if (selected && mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         duplicateElement(selected.id);
@@ -735,6 +788,7 @@ export default function StudioApp({
     uploadLogo,
     placeAsset,
     addIcon,
+    addCode,
     isLoggedIn,
     requireLogin,
     images,
@@ -810,6 +864,9 @@ export default function StudioApp({
               <EyeIcon className="size-4" />
             </ToolButton>
             <ExportMenu onPng={exportPng} onSvg={exportSvg} onJson={exportJson} />
+            <ToolButton label={locale === "ar" ? "اختصارات لوحة المفاتيح" : "Keyboard shortcuts"} onClick={() => setShortcutsOpen(true)}>
+              <span className="text-sm font-bold">?</span>
+            </ToolButton>
           </div>
           <Button variant="outline" size="sm" onClick={() => void save()} disabled={busy !== null || hasErrors(dimIssues)}>
             {busy === "save" ? <Spinner /> : <SaveIcon className="size-4" />}
@@ -925,6 +982,7 @@ export default function StudioApp({
                     <SurfaceEditor
                       spec={spec}
                       surface={doc.surfaces[surfaceKey]}
+                      structure={{ codes: doc.finishingCodes, boxStyle: engine.boxStyle }}
                       materialColor={materialColor}
                       safeMargin={template.version.safeMarginMm}
                       images={images}
@@ -973,6 +1031,7 @@ export default function StudioApp({
                     textureVersion={faceVersions}
                     materialColor={materialColor}
                     insideColor={doc.interior}
+                    addons={doc.finishingCodes}
                     lidOpen={lidOpen}
                     preset={preset.p}
                     presetNonce={preset.n}
@@ -1089,6 +1148,41 @@ export default function StudioApp({
           </nav>
         </div>
       </div>
+
+      {shortcutsOpen && (
+        <div role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" className="fixed inset-0 z-50 grid place-items-center bg-navy-950/40 p-4" onClick={() => setShortcutsOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[var(--shadow-lift)]" onClick={(e) => e.stopPropagation()}>
+            <h2 id="shortcuts-title" className="text-lg font-bold text-navy">
+              {locale === "ar" ? "اختصارات لوحة المفاتيح" : "Keyboard shortcuts"}
+            </h2>
+            <dl className="mt-4 divide-y divide-navy/8 text-sm">
+              {[
+                ["Ctrl + Z", locale === "ar" ? "تراجع" : "Undo"],
+                ["Ctrl + Shift + Z / Ctrl + Y", locale === "ar" ? "إعادة" : "Redo"],
+                ["Ctrl + C / Ctrl + V", locale === "ar" ? "نسخ ولصق عنصر (حتى بين الأوجه)" : "Copy & paste an element (across faces too)"],
+                ["Ctrl + D", locale === "ar" ? "تكرار العنصر" : "Duplicate element"],
+                ["Delete", locale === "ar" ? "حذف العنصر" : "Delete element"],
+                ["← ↑ → ↓", locale === "ar" ? "تحريك 1 مم (مع Shift: 10 مم)" : "Nudge 1 mm (Shift: 10 mm)"],
+                ["Ctrl + S", locale === "ar" ? "حفظ التصميم" : "Save design"],
+                ["Esc", locale === "ar" ? "إلغاء التحديد" : "Deselect"],
+                ["?", locale === "ar" ? "هذه القائمة" : "This list"],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-center justify-between gap-4 py-2">
+                  <dt className="text-ink-500">{v}</dt>
+                  <dd>
+                    <kbd className="num rounded-md border border-navy/15 bg-paper px-2 py-0.5 text-xs text-navy" dir="ltr">
+                      {k}
+                    </kbd>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <Button className="mt-5 w-full" variant="outline" onClick={() => setShortcutsOpen(false)}>
+              {t.nav.close}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── Login prompt ── */}
       {loginPrompt && (

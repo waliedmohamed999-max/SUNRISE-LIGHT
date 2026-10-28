@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useStudio } from "./context";
-import { effectiveDpi, FINISHES, FONT_KEYS, isOutsideSafeArea, MIN_PRINT_DPI, type Finish, type FontKey, type TextElement, FINISH_LABELS, COATINGS, COATING_LABELS, type Coating } from "@/design/document";
+import { effectiveDpi, FINISHES, FONT_KEYS, isOutsideSafeArea, MIN_PRINT_DPI, type CodeElement, type FaceFill, PATTERNS, type Finish, type FontKey, type TextElement, FINISH_LABELS, COATINGS, COATING_LABELS, type Coating } from "@/design/document";
 import { STUDIO_FONTS } from "@/design/fonts";
 import { fmt } from "@/i18n/dictionaries";
 import { SURFACE_KEYS, type Dimensions, type SurfaceKey } from "@/packaging/types";
@@ -12,6 +12,9 @@ import { TemplateGlyph } from "./TemplateGlyph";
 import { drawIcon, ICONS, ICON_KEYS, type IconKey } from "@/design/icons";
 import { applyPreset, DESIGN_PRESETS, type DesignPreset } from "@/design/presets";
 import { measureText } from "@/design/render";
+import type { TextStyle } from "./context";
+import { normaliseEan13 } from "@/design/codes";
+import { decorApplied, finishingGroup, GROUP_LABELS, toggleFinishing, type FinishingGroup } from "@/design/finishing";
 export { TemplateGlyph };
 import {
   AlignCenterIcon,
@@ -318,7 +321,7 @@ export function SurfacesPanel() {
 /* ───────────────────────── Material / printing / finishing ───────────────────────── */
 
 export function MaterialPanel() {
-  const { compatibleMaterials, material, update, locale, t, template, doc, catalog } = useStudio();
+  const { compatibleMaterials, material, update, locale, t, template, doc, catalog, surfaceKey, selectedId, printable, engine } = useStudio();
   const finishings = catalog.finishings.filter((f) => material?.finishingCodes.includes(f.code));
   const tip = ENGINE_TIPS[template.engineKey];
   return (
@@ -363,28 +366,46 @@ export function MaterialPanel() {
         </div>
       )}
       {finishings.length > 0 && (
-        <div>
+        <div className="space-y-4">
           <PanelTitle>{t.studio.finishing}</PanelTitle>
-          <div className="flex flex-wrap gap-1.5">
-            {finishings.map((f) => {
-              const on = doc.finishingCodes.includes(f.code);
-              return (
-                <button
-                  key={f.code}
-                  aria-pressed={on}
-                  onClick={() =>
-                    update((d) => ({
-                      ...d,
-                      finishingCodes: f.code === "none" ? (on ? [] : ["none"]) : on ? d.finishingCodes.filter((c) => c !== f.code) : [...d.finishingCodes.filter((c) => c !== "none"), f.code],
-                    }))
-                  }
-                  className={cx("rounded-full border px-3 py-1.5 text-xs font-medium", on ? "border-navy bg-navy text-white" : "border-navy/15 bg-white text-navy")}
-                >
-                  {locale === "ar" ? f.nameAr : f.nameEn}
-                </button>
-              );
-            })}
-          </div>
+          {(["surface", "decor", "handles", "structure", "note"] as FinishingGroup[]).map((g) => {
+            const items = finishings.filter((f) => finishingGroup(f.code) === g && (g !== "handles" || engine.boxStyle === "bag"));
+            if (!items.length) return null;
+            const exclusive = g === "surface" || g === "handles";
+            return (
+              <div key={g}>
+                <p className="text-xs font-semibold text-navy">{GROUP_LABELS[g][locale]}</p>
+                <p className="mb-1.5 text-[10px] text-ink-500">{GROUP_LABELS[g].hint[locale]}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {items.map((f) => {
+                    const on = doc.finishingCodes.includes(f.code);
+                    const missing = on && g === "decor" && !decorApplied(doc, f.code);
+                    return (
+                      <button
+                        key={f.code}
+                        role={exclusive ? "radio" : undefined}
+                        aria-checked={exclusive ? on : undefined}
+                        aria-pressed={exclusive ? undefined : on}
+                        onClick={() => update((d) => toggleFinishing(d, f.code, { surfaceKey, selectedId, printable: SURFACE_KEYS.filter(printable) }))}
+                        className={cx(
+                          "rounded-full border px-3 py-1.5 text-xs font-medium",
+                          on ? (missing ? "border-sun bg-sun-100 text-navy" : "border-navy bg-navy text-white") : "border-navy/15 bg-white text-navy hover:border-navy/40",
+                        )}
+                      >
+                        {exclusive && <span className={cx("me-1.5 inline-block size-2 rounded-full border", on ? "border-white bg-white" : "border-navy/40")} />}
+                        {locale === "ar" ? f.nameAr : f.nameEn}
+                      </button>
+                    );
+                  })}
+                </div>
+                {g === "decor" && items.some((f) => doc.finishingCodes.includes(f.code) && !decorApplied(doc, f.code)) && (
+                  <p className="mt-1.5 rounded-lg bg-sun-100/60 px-2 py-1.5 text-[11px] text-navy">
+                    {locale === "ar" ? "أضف شعارًا أو نصًا ثم حدده واضغط الاختيار مرة أخرى لتظهر البصمة/الكفراج عليه." : "Add a logo or text, select it, then press the option again to apply it."}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       <div>
@@ -454,7 +475,7 @@ export function ColorsPanel() {
   const setAll = (color: string | null) =>
     update((d) => ({
       ...d,
-      surfaces: Object.fromEntries(SURFACE_KEYS.map((k) => [k, printable(k) ? { ...d.surfaces[k], background: color } : d.surfaces[k]])) as typeof d.surfaces,
+      surfaces: Object.fromEntries(SURFACE_KEYS.map((k) => [k, printable(k) ? { ...d.surfaces[k], background: color, ...(color === null ? { fill: undefined } : {}) } : d.surfaces[k]])) as typeof d.surfaces,
     }));
   const setCoating = (k: SurfaceKey | "all", coating: Coating) =>
     update((d) => ({
@@ -489,6 +510,9 @@ export function ColorsPanel() {
           </Button>
         </div>
       </div>
+
+      {/* background type for the active face */}
+      <FaceFillEditor />
 
       {/* every face */}
       <div>
@@ -556,15 +580,37 @@ export function ColorsPanel() {
 
 /* ───────────────────────── Text ───────────────────────── */
 
+const TEXT_STYLES: { key: string; ar: string; en: string; style: (ar: boolean) => TextStyle; preview: string }[] = [
+  { key: "title", ar: "عنوان رئيسي", en: "Headline", preview: "text-[17px] font-bold", style: (ar) => ({ text: ar ? "اسم علامتك" : "Your brand", sizeFrac: 0.16, bold: true }) },
+  { key: "subtitle", ar: "عنوان فرعي", en: "Subheading", preview: "text-[13px] font-semibold", style: (ar) => ({ text: ar ? "وصف قصير للمنتج" : "Short product line", sizeFrac: 0.08, bold: true, yFrac: 0.65 }) },
+  { key: "spaced", ar: "عنوان بتباعد أحرف", en: "Spaced caps", preview: "text-[12px] font-semibold tracking-[0.3em]", style: () => ({ text: "SUNRISE", sizeFrac: 0.09, bold: true, letterSpacing: 0.3, font: "inter" }) },
+  { key: "body", ar: "فقرة نص", en: "Body text", preview: "text-[11px]", style: (ar) => ({ text: ar ? "اكتب وصف المنتج هنا\nفي سطرين أو ثلاثة" : "Write the product description\nin two or three lines", sizeFrac: 0.05, bold: false, lineHeight: 1.5 }) },
+  { key: "ingredients", ar: "المكونات", en: "Ingredients", preview: "text-[10px]", style: (ar) => ({ text: ar ? "المكونات: ...\nالوزن الصافي: ... جم\nتاريخ الإنتاج / الانتهاء: ..." : "Ingredients: ...\nNet weight: ... g\nProduction / expiry: ...", sizeFrac: 0.045, bold: false, align: "start", lineHeight: 1.45, color: "#1D2235" }) },
+  { key: "contact", ar: "بيانات التواصل", en: "Contact block", preview: "text-[10px]", style: (ar) => ({ text: ar ? "www.example.com\n@yourbrand · 05XXXXXXXX" : "www.example.com\n@yourbrand · +966 5X XXX XXXX", sizeFrac: 0.05, bold: false, lineHeight: 1.4, font: "inter" }) },
+  { key: "made-in", ar: "صُنع في السعودية", en: "Made in Saudi Arabia", preview: "text-[11px] font-semibold", style: (ar) => ({ text: ar ? "صُنع في المملكة العربية السعودية" : "Made in Saudi Arabia", sizeFrac: 0.05, bold: true, yFrac: 0.85 }) },
+];
+
 export function TextPanel() {
-  const { addText, t, selected } = useStudio();
+  const { addText, t, selected, locale } = useStudio();
+  const ar = locale === "ar";
   return (
     <div className="space-y-4">
       <PanelTitle>{t.studio.text}</PanelTitle>
-      <Button variant="primary" size="sm" className="w-full" onClick={addText}>
+      <Button variant="primary" size="sm" className="w-full" onClick={() => addText()}>
         <TextIcon className="size-4" />
         {t.studio.addText}
       </Button>
+      <div>
+        <p className="mb-2 text-[11px] font-semibold text-ink-500">{ar ? "أنماط نص جاهزة" : "Text styles"}</p>
+        <div className="grid gap-1.5">
+          {TEXT_STYLES.map((s) => (
+            <button key={s.key} onClick={() => addText(s.style(ar))} className="flex items-center justify-between rounded-xl border border-navy/10 bg-white px-3 py-2.5 text-start transition hover:border-navy/30 hover:shadow-sm">
+              <span className={cx("text-navy", s.preview)}>{ar ? s.ar : s.en}</span>
+              <span className="text-[16px] leading-none text-ink-500">+</span>
+            </button>
+          ))}
+        </div>
+      </div>
       {/* on desktop the selected-element inspector already shows these controls */}
       {selected?.type === "text" && (
         <div className="lg:hidden">
@@ -576,7 +622,7 @@ export function TextPanel() {
 }
 
 function TextInspector({ el }: { el: TextElement }) {
-  const { updateElement, t } = useStudio();
+  const { updateElement, t, locale } = useStudio();
   const ref = useRef<HTMLTextAreaElement>(null);
   return (
     <div className="space-y-3">
@@ -638,6 +684,28 @@ function TextInspector({ el }: { el: TextElement }) {
             </button>
           ))}
         </div>
+      </div>
+      {/* spacing, line height, outline */}
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="mb-1 flex justify-between text-[11px] text-ink-500">
+            <span>{locale === "ar" ? "تباعد الأحرف" : "Letter spacing"}</span>
+            <span className="num">{Math.round((el.letterSpacing ?? 0) * 100)}</span>
+          </span>
+          <input type="range" min={-10} max={60} value={Math.round((el.letterSpacing ?? 0) * 100)} onChange={(e) => updateElement(el.id, { letterSpacing: Number(e.target.value) / 100 }, `ls-${el.id}`)} className="w-full accent-[#EA5B32]" />
+        </label>
+        <label className="block">
+          <span className="mb-1 flex justify-between text-[11px] text-ink-500">
+            <span>{locale === "ar" ? "ارتفاع السطر" : "Line height"}</span>
+            <span className="num">{(el.lineHeight ?? 1.3).toFixed(1)}</span>
+          </span>
+          <input type="range" min={8} max={30} value={Math.round((el.lineHeight ?? 1.3) * 10)} onChange={(e) => updateElement(el.id, { lineHeight: Number(e.target.value) / 10 }, `lh-${el.id}`)} className="w-full accent-[#EA5B32]" />
+        </label>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-ink-500">{locale === "ar" ? "إطار حول الحروف" : "Outline"}</span>
+        <input type="color" aria-label={locale === "ar" ? "لون الإطار" : "Outline colour"} value={el.strokeColor ?? "#FFFFFF"} onChange={(e) => updateElement(el.id, { strokeColor: e.target.value.toUpperCase(), strokeWidth: el.strokeWidth || 0.06 }, `sc-${el.id}`)} className="h-8 w-10 rounded-lg border border-navy/15 p-1" />
+        <input type="range" min={0} max={20} value={Math.round((el.strokeWidth ?? 0) * 100)} onChange={(e) => updateElement(el.id, { strokeWidth: Number(e.target.value) / 100, strokeColor: el.strokeColor ?? "#FFFFFF" }, `sw-${el.id}`)} className="flex-1 accent-[#EA5B32]" aria-label={locale === "ar" ? "سماكة الإطار" : "Outline width"} />
       </div>
     </div>
   );
@@ -731,7 +799,7 @@ export function LayersPanel() {
                     )}
                   </span>
                   <span className="truncate text-xs font-medium text-navy" dir="auto">
-                    {el.type === "text" ? el.text || "—" : el.type === "icon" ? ICONS[el.icon].label[locale] : "Logo"}
+                    {el.type === "text" ? el.text || "—" : el.type === "icon" ? ICONS[el.icon].label[locale] : el.type === "code" ? (el.kind === "qr" ? "QR" : "EAN-13") : "Logo"}
                   </span>
                 </button>
                 <button aria-label={t.studio.lockedHint} aria-pressed={!!el.locked} onClick={() => updateElement(el.id, { locked: !el.locked })} className={cx("rounded p-1", el.locked ? "text-sun-600" : "text-navy-300 hover:text-navy")}>
@@ -876,6 +944,48 @@ export function InspectorPanel() {
           )}
         </div>
       )}
+      {/* appearance: opacity + flip */}
+      <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+        <label className="block">
+          <span className="mb-1 flex justify-between text-[11px] text-ink-500">
+            <span>{ar ? "الشفافية" : "Opacity"}</span>
+            <span className="num">{Math.round((selected.opacity ?? 1) * 100)}%</span>
+          </span>
+          <input
+            type="range"
+            min={5}
+            max={100}
+            value={Math.round((selected.opacity ?? 1) * 100)}
+            onChange={(e) => updateElement(selected.id, { opacity: Number(e.target.value) / 100 }, `op-${selected.id}`)}
+            className="w-full accent-[#EA5B32]"
+          />
+        </label>
+        <div className="flex gap-1">
+          <button type="button" aria-pressed={!!selected.flipX} onClick={() => updateElement(selected.id, { flipX: !selected.flipX })} className={cx("rounded-lg border px-2 py-1.5 text-[11px]", selected.flipX ? "border-navy bg-navy text-white" : "border-navy/15 text-navy")}>
+            ⇋ {ar ? "أفقي" : "Flip H"}
+          </button>
+          <button type="button" aria-pressed={!!selected.flipY} onClick={() => updateElement(selected.id, { flipY: !selected.flipY })} className={cx("rounded-lg border px-2 py-1.5 text-[11px]", selected.flipY ? "border-navy bg-navy text-white" : "border-navy/15 text-navy")}>
+            ⇅ {ar ? "رأسي" : "Flip V"}
+          </button>
+        </div>
+      </div>
+      {selected.type === "image" && (
+        <div>
+          <p className="mb-1 text-[11px] text-ink-500">{ar ? "لون واحد للشعار (للطباعة بلون واحد أو شعار أبيض)" : "One-colour logo (single-ink print or white logo)"}</p>
+          <div className="flex items-center gap-1.5">
+            {["#FFFFFF", "#1D2235", "#2F357C", "#EA5B32", "#D4A84B"].map((col) => (
+              <button key={col} aria-label={col} onClick={() => updateElement(selected.id, { tint: col })} className={cx("size-7 rounded-md border", selected.tint === col ? "border-sun ring-2 ring-sun/40" : "border-black/15")} style={{ background: col }} />
+            ))}
+            <input type="color" aria-label={ar ? "لون مخصص" : "Custom colour"} value={selected.tint ?? "#2F357C"} onChange={(e) => updateElement(selected.id, { tint: e.target.value.toUpperCase() }, `tint-${selected.id}`)} className="h-7 w-9 rounded-md border border-navy/15 p-0.5" />
+            {selected.tint && (
+              <button onClick={() => updateElement(selected.id, { tint: undefined })} className="rounded-md px-2 py-1 text-[11px] text-ink-500 hover:bg-paper-200">
+                {ar ? "الألوان الأصلية" : "Original"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {selected.type === "code" && <CodeInspector el={selected} />}
       <FinishPicker value={selected.finish ?? "none"} onChange={(f) => updateElement(selected.id, { finish: f })} />
       {dpi !== null && dpi < MIN_PRINT_DPI && <Alert tone="warn">{fmt(t.studio.lowRes, { dpi })}</Alert>}
       {dpi !== null && dpi >= MIN_PRINT_DPI && <p className="num text-xs text-ok">{dpi} dpi</p>}
@@ -992,7 +1102,7 @@ function IconPreview({ icon, color, size = 40 }: { icon: IconKey; color: string;
 }
 
 export function ElementsPanel() {
-  const { addIcon, locale } = useStudio();
+  const { addIcon, addCode, locale } = useStudio();
   const ar = locale === "ar";
   const [color, setColor] = useState("#2F357C");
   const groups: { key: "handling" | "marks" | "shapes"; ar: string; en: string }[] = [
@@ -1029,6 +1139,19 @@ export function ElementsPanel() {
           </div>
         </div>
       ))}
+      <div>
+        <p className="mb-2 text-[11px] font-semibold text-ink-500">{ar ? "الأكواد" : "Codes"}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => addCode("qr")} className="flex items-center gap-2 rounded-xl border border-navy/10 bg-white p-2.5 text-start transition hover:border-navy/30 hover:shadow-sm">
+            <span className="grid size-10 place-items-center rounded-lg bg-paper font-mono text-[11px] font-bold text-navy">QR</span>
+            <span className="text-[11px] leading-tight text-navy">{ar ? "رمز QR (موقع، منيو، تواصل)" : "QR code (site, menu, social)"}</span>
+          </button>
+          <button onClick={() => addCode("ean13")} className="flex items-center gap-2 rounded-xl border border-navy/10 bg-white p-2.5 text-start transition hover:border-navy/30 hover:shadow-sm">
+            <span className="grid size-10 place-items-center rounded-lg bg-paper font-mono text-[11px] font-bold tracking-tighter text-navy">|||||</span>
+            <span className="text-[11px] leading-tight text-navy">{ar ? "باركود EAN-13 للمحلات" : "EAN-13 retail barcode"}</span>
+          </button>
+        </div>
+      </div>
       <p className="text-[11px] leading-relaxed text-ink-500">
         {ar ? "العناصر متجهة (Vector) وتُطبع بحدة كاملة، ويمكن جعلها بصمة أو كفراج من لوحة العنصر المحدد." : "Elements are vector and print sharply; make them foil or embossed from the selected-element panel."}
       </p>
@@ -1074,6 +1197,135 @@ export function PresetsPanel() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── Codes (QR / EAN-13) ───────────────────────── */
+
+function CodeInspector({ el }: { el: CodeElement }) {
+  const { updateElement, locale } = useStudio();
+  const ar = locale === "ar";
+  const valid = el.kind === "qr" ? el.value.trim().length > 0 : normaliseEan13(el.value) !== null;
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="mb-1 block text-[11px] text-ink-500">
+          {el.kind === "qr" ? (ar ? "رابط أو نص رمز QR" : "QR link or text") : ar ? "رقم الباركود (12 أو 13 رقماً)" : "Barcode number (12 or 13 digits)"}
+        </span>
+        <input
+          dir="ltr"
+          className={cx(inputClass, "num text-xs")}
+          value={el.value}
+          maxLength={el.kind === "qr" ? 300 : 13}
+          onChange={(e) => updateElement(el.id, { value: el.kind === "qr" ? e.target.value : e.target.value.replace(/\D/g, "") }, `cv-${el.id}`)}
+        />
+      </label>
+      {!valid && <Alert tone="warn">{ar ? "رقم باركود غير صالح — أدخل 12 رقماً ليُضاف رقم التحقق تلقائياً." : "Invalid barcode — enter 12 digits and the check digit is added for you."}</Alert>}
+      {el.kind === "ean13" && valid && <p className="num text-[11px] text-ok">EAN-13: {normaliseEan13(el.value)}</p>}
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-ink-500">{ar ? "اللون" : "Ink"}</span>
+        <input type="color" value={el.color} onChange={(e) => updateElement(el.id, { color: e.target.value.toUpperCase() }, `cc-${el.id}`)} className="h-7 w-9 rounded-md border border-navy/15 p-0.5" />
+        <span className="text-[11px] text-ink-500">{ar ? "الخلفية" : "Background"}</span>
+        <input type="color" value={el.background ?? "#FFFFFF"} onChange={(e) => updateElement(el.id, { background: e.target.value.toUpperCase() }, `cb-${el.id}`)} className="h-7 w-9 rounded-md border border-navy/15 p-0.5" />
+        <button onClick={() => updateElement(el.id, { background: el.background ? null : "#FFFFFF" })} className="rounded-md px-2 py-1 text-[11px] text-ink-500 hover:bg-paper-200">
+          {el.background ? (ar ? "بدون خلفية" : "No background") : ar ? "خلفية بيضاء" : "White background"}
+        </button>
+      </div>
+      <p className="text-[10px] leading-relaxed text-ink-500">
+        {el.kind === "qr"
+          ? ar ? "اترك خلفية فاتحة وتباين عالٍ، ولا تصغّره عن 20 مم ليُقرأ بسهولة." : "Keep a light background and strong contrast, and don't go below 20 mm."
+          : ar ? "الباركود الحقيقي يُسجَّل لدى GS1؛ استخدم رقم منتجك المسجّل." : "Real barcodes are registered with GS1; use your registered product number."}
+      </p>
+    </div>
+  );
+}
+
+/* ───────────────────────── Face fill (solid / gradient / pattern) ───────────────────────── */
+
+const PATTERN_LABELS: Record<(typeof PATTERNS)[number], { ar: string; en: string }> = {
+  stripes: { ar: "خطوط", en: "Stripes" },
+  dots: { ar: "نقاط", en: "Dots" },
+  grid: { ar: "شبكة", en: "Grid" },
+  chevron: { ar: "شيفرون", en: "Chevron" },
+  diagonal: { ar: "قُطري", en: "Diagonal" },
+};
+
+function FaceFillEditor() {
+  const { doc, surfaceKey, update, locale, spec } = useStudio();
+  const ar = locale === "ar";
+  const face = doc.surfaces[surfaceKey];
+  const fill = face.fill;
+  const mode: "solid" | "gradient" | "pattern" = fill?.type ?? "solid";
+  const base = face.background ?? "#2F357C";
+  const setFill = (next: FaceFill | undefined, live?: string) =>
+    update((d) => ({ ...d, surfaces: { ...d.surfaces, [surfaceKey]: { ...d.surfaces[surfaceKey], fill: next, background: d.surfaces[surfaceKey].background ?? (next?.type === "gradient" ? next.from : next?.type === "pattern" ? next.bg : null) } } }), live);
+  const swatch = (value: string, onChange: (v: string) => void, label: string) => (
+    <label className="flex items-center gap-1.5 text-[11px] text-ink-500">
+      {label}
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value.toUpperCase())} className="h-7 w-9 cursor-pointer rounded-md border border-navy/15 p-0.5" />
+    </label>
+  );
+  return (
+    <div>
+      <PanelTitle>
+        {ar ? "نوع خلفية الوجه" : "Face background"} — {spec.label[locale]}
+      </PanelTitle>
+      <div role="radiogroup" className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-paper-200 p-1">
+        {(["solid", "gradient", "pattern"] as const).map((m) => (
+          <button
+            key={m}
+            role="radio"
+            aria-checked={mode === m}
+            onClick={() =>
+              setFill(m === "solid" ? undefined : m === "gradient" ? { type: "gradient", from: base, to: "#EA5B32", angle: 90 } : { type: "pattern", pattern: "stripes", fg: "#EA5B32", bg: base, scale: 12 })
+            }
+            className={cx("rounded-md py-1.5 text-[11px] font-medium", mode === m ? "bg-white text-navy shadow-sm" : "text-ink-500")}
+          >
+            {m === "solid" ? (ar ? "لون" : "Solid") : m === "gradient" ? (ar ? "تدرّج" : "Gradient") : ar ? "نقشة" : "Pattern"}
+          </button>
+        ))}
+      </div>
+      {fill?.type === "gradient" && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {swatch(fill.from, (v) => setFill({ ...fill, from: v }, `gf-${surfaceKey}`), ar ? "من" : "From")}
+            {swatch(fill.to, (v) => setFill({ ...fill, to: v }, `gt-${surfaceKey}`), ar ? "إلى" : "To")}
+            <button onClick={() => setFill({ ...fill, from: fill.to, to: fill.from })} className="rounded-md px-2 py-1 text-[11px] text-navy hover:bg-paper-200">
+              ⇄ {ar ? "عكس" : "Swap"}
+            </button>
+          </div>
+          <label className="block">
+            <span className="mb-1 flex justify-between text-[11px] text-ink-500">
+              <span>{ar ? "الزاوية" : "Angle"}</span>
+              <span className="num">{fill.angle}°</span>
+            </span>
+            <input type="range" min={0} max={360} step={5} value={fill.angle} onChange={(e) => setFill({ ...fill, angle: Number(e.target.value) }, `ga-${surfaceKey}`)} className="w-full accent-[#EA5B32]" />
+          </label>
+        </div>
+      )}
+      {fill?.type === "pattern" && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-5 gap-1">
+            {PATTERNS.map((p) => (
+              <button key={p} onClick={() => setFill({ ...fill, pattern: p })} className={cx("rounded-md border px-1 py-1.5 text-[10px]", fill.pattern === p ? "border-sun bg-sun-100 text-navy" : "border-navy/10 text-ink-500")}>
+                {PATTERN_LABELS[p][locale]}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {swatch(fill.fg, (v) => setFill({ ...fill, fg: v }, `pf-${surfaceKey}`), ar ? "النقشة" : "Pattern")}
+            {swatch(fill.bg, (v) => setFill({ ...fill, bg: v }, `pb-${surfaceKey}`), ar ? "الخلفية" : "Background")}
+          </div>
+          <label className="block">
+            <span className="mb-1 flex justify-between text-[11px] text-ink-500">
+              <span>{ar ? "حجم النقشة" : "Pattern size"}</span>
+              <span className="num">{fill.scale} mm</span>
+            </span>
+            <input type="range" min={3} max={50} value={fill.scale} onChange={(e) => setFill({ ...fill, scale: Number(e.target.value) }, `ps-${surfaceKey}`)} className="w-full accent-[#EA5B32]" />
+          </label>
+        </div>
+      )}
     </div>
   );
 }

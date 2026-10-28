@@ -1,9 +1,11 @@
 "use client";
 
-import type { DesignDocument, DesignElement, SurfaceDoc, TextElement } from "./document";
+import type { DesignDocument, DesignElement, FaceFill, SurfaceDoc, TextElement } from "./document";
 import { STUDIO_FONTS } from "./fonts";
 import { drawIcon } from "./icons";
-import type { Dieline, Dimensions, SurfaceKey, SurfaceSpec } from "@/packaging/types";
+import { drawCode } from "./codes";
+import { drawStructure } from "./finishing";
+import type { BoxStyle, Dieline, Dimensions, SurfaceKey, SurfaceSpec } from "@/packaging/types";
 
 /* ───────────────────────── Assets ───────────────────────── */
 
@@ -47,15 +49,24 @@ const fontString = (el: Pick<TextElement, "bold" | "font">, px: number) => `${el
 let measureCtx: CanvasRenderingContext2D | null = null;
 
 /** Natural box size (mm) of a text element for its content and font. */
-export function measureText(el: Pick<TextElement, "text" | "font" | "bold" | "fontSizeMm">): { width: number; height: number } {
+export function measureText(
+  el: Pick<TextElement, "text" | "font" | "bold" | "fontSizeMm"> & Partial<Pick<TextElement, "letterSpacing" | "lineHeight" | "strokeWidth">>,
+): { width: number; height: number } {
   measureCtx ??= document.createElement("canvas").getContext("2d");
   const ctx = measureCtx!;
   const px = 100;
   ctx.font = fontString(el, px);
+  ctx.letterSpacing = `${(el.letterSpacing ?? 0) * px}px`;
   const lines = (el.text || " ").split("\n");
   const maxW = Math.max(...lines.map((l) => ctx.measureText(l || " ").width));
+  ctx.letterSpacing = "0px";
   const k = el.fontSizeMm / px;
-  return { width: maxW * k + el.fontSizeMm * PAD * 2, height: lines.length * el.fontSizeMm * LINE_HEIGHT + el.fontSizeMm * PAD * 2 };
+  // the outline grows the glyphs by half its width on each side
+  const stroke = (el.strokeWidth ?? 0) * el.fontSizeMm;
+  return {
+    width: maxW * k + el.fontSizeMm * PAD * 2 + stroke,
+    height: lines.length * el.fontSizeMm * (el.lineHeight ?? LINE_HEIGHT) + el.fontSizeMm * PAD * 2 + stroke,
+  };
 }
 
 function drawText(ctx: CanvasRenderingContext2D, el: TextElement, s: number) {
@@ -65,6 +76,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: TextElement, s: number) {
   const lines = (el.text || "").split("\n");
   const rtl = isRtlText(el.text);
   ctx.font = fontString(el, px);
+  ctx.letterSpacing = `${(el.letterSpacing ?? 0) * px}px`;
   ctx.fillStyle = el.color;
   ctx.textBaseline = "middle";
   ctx.direction = rtl ? "rtl" : "ltr";
@@ -73,8 +85,21 @@ function drawText(ctx: CanvasRenderingContext2D, el: TextElement, s: number) {
   const endX = rtl ? -w / 2 + pad : w / 2 - pad;
   ctx.textAlign = el.align === "center" ? "center" : el.align === "start" ? (rtl ? "right" : "left") : rtl ? "left" : "right";
   const x = el.align === "center" ? 0 : el.align === "start" ? startX : endX;
-  const blockH = lines.length * px * LINE_HEIGHT;
-  lines.forEach((line, i) => ctx.fillText(line, x, -blockH / 2 + px * LINE_HEIGHT * (i + 0.5), Math.max(1, w)));
+  const lh = el.lineHeight ?? LINE_HEIGHT;
+  const blockH = lines.length * px * lh;
+  const outline = el.strokeColor && (el.strokeWidth ?? 0) > 0 ? (el.strokeWidth ?? 0) * px : 0;
+  lines.forEach((line, i) => {
+    const y = -blockH / 2 + px * lh * (i + 0.5);
+    if (outline) {
+      // outline drawn under the fill, so its inner half is covered and letters keep their weight
+      ctx.strokeStyle = el.strokeColor!;
+      ctx.lineWidth = outline * 2;
+      ctx.lineJoin = "round";
+      ctx.strokeText(line, x, y, Math.max(1, w));
+    }
+    ctx.fillText(line, x, y, Math.max(1, w));
+  });
+  ctx.letterSpacing = "0px";
   void h;
 }
 
@@ -86,13 +111,32 @@ const FOIL_COLOR = { "foil-gold": "#D4A84B", "foil-silver": "#C9CCD1" } as const
 function drawElementRaw(ctx: CanvasRenderingContext2D, el: DesignElement, s: number, images: ImageMap) {
   if (el.type === "image") {
     const img = images.get(el.assetId);
-    if (img) ctx.drawImage(img, (-el.width / 2) * s, (-el.height / 2) * s, el.width * s, el.height * s);
+    if (!img) return;
+    const w = el.width * s;
+    const h = el.height * s;
+    if (el.tint) {
+      // single-ink version of the logo: keep its shape (alpha), replace every colour
+      tintScratch ??= document.createElement("canvas");
+      tintScratch.width = Math.max(1, Math.ceil(w));
+      tintScratch.height = Math.max(1, Math.ceil(h));
+      const t = tintScratch.getContext("2d")!;
+      t.drawImage(img, 0, 0, tintScratch.width, tintScratch.height);
+      t.globalCompositeOperation = "source-in";
+      t.fillStyle = el.tint;
+      t.fillRect(0, 0, tintScratch.width, tintScratch.height);
+      ctx.drawImage(tintScratch, -w / 2, -h / 2, w, h);
+    } else {
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    }
   } else if (el.type === "icon") {
     drawIcon(ctx, el.icon, el.width * s, el.height * s, el.color);
+  } else if (el.type === "code") {
+    drawCode(ctx, el.kind, el.value, el.width * s, el.height * s, el.color, el.background);
   } else {
     drawText(ctx, el, s);
   }
 }
+let tintScratch: HTMLCanvasElement | null = null;
 
 let scratch: HTMLCanvasElement | null = null;
 /** Element silhouette filled with a flat colour (used for foil and for finish maps). */
@@ -115,6 +159,8 @@ export function drawElement(ctx: CanvasRenderingContext2D, el: DesignElement, s:
   ctx.save();
   ctx.translate(el.x * s, el.y * s);
   ctx.rotate((el.rotation * Math.PI) / 180);
+  if (el.flipX || el.flipY) ctx.scale(el.flipX ? -1 : 1, el.flipY ? -1 : 1);
+  if (el.opacity !== undefined) ctx.globalAlpha *= el.opacity;
   const finish = el.finish ?? "none";
   if (finish === "foil-gold" || finish === "foil-silver") {
     // foil replaces the ink with metal; a light gradient sells the sheen in flat views
@@ -229,12 +275,15 @@ export interface SurfaceRenderOpts {
   materialColor: string;
   textured?: boolean;
   images: ImageMap;
+  /** order add-ons (window, ribbon, holes …) drawn as preview marks */
+  structure?: { codes: string[]; boxStyle: BoxStyle };
 }
 
 export function drawSurface(ctx: CanvasRenderingContext2D, spec: { w: number; h: number }, surface: SurfaceDoc, s: number, opts: SurfaceRenderOpts) {
   ctx.save();
   ctx.fillStyle = surface.background ?? opts.materialColor;
   ctx.fillRect(0, 0, spec.w * s, spec.h * s);
+  if (surface.fill) drawFaceFill(ctx, surface.fill, spec.w * s, spec.h * s, s);
   if (opts.textured) {
     const pattern = ctx.createPattern(grain(), "repeat");
     if (pattern) {
@@ -269,6 +318,7 @@ export function renderSurfaceCanvases(
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     drawSurface(ctx, spec, doc.surfaces[spec.key], s, opts);
+    if (opts.structure?.codes.length) drawStructure(ctx, spec.key, opts.structure.codes, opts.structure.boxStyle, spec.w, spec.h, s);
     out[spec.key] = canvas;
   }
   return out;
@@ -428,4 +478,64 @@ export function downloadBlob(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ───────────────────────── Face fills (gradient / pattern) ───────────────────────── */
+
+export function drawFaceFill(ctx: CanvasRenderingContext2D, fill: FaceFill, w: number, h: number, s: number) {
+  ctx.save();
+  if (fill.type === "gradient") {
+    const a = (fill.angle * Math.PI) / 180;
+    const r = Math.hypot(w, h) / 2;
+    const dx = Math.cos(a) * r;
+    const dy = Math.sin(a) * r;
+    const g = ctx.createLinearGradient(w / 2 - dx, h / 2 - dy, w / 2 + dx, h / 2 + dy);
+    g.addColorStop(0, fill.from);
+    g.addColorStop(1, fill.to);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  } else {
+    const t = Math.max(4, fill.scale * s); // tile size in px (scale is in mm)
+    const tile = document.createElement("canvas");
+    tile.width = tile.height = Math.ceil(t);
+    const x = tile.getContext("2d")!;
+    x.fillStyle = fill.bg;
+    x.fillRect(0, 0, t, t);
+    x.fillStyle = fill.fg;
+    x.strokeStyle = fill.fg;
+    x.lineWidth = t * 0.14;
+    switch (fill.pattern) {
+      case "stripes":
+        x.fillRect(0, 0, t, t / 2);
+        break;
+      case "dots":
+        x.beginPath();
+        x.arc(t / 2, t / 2, t * 0.18, 0, Math.PI * 2);
+        x.fill();
+        break;
+      case "grid":
+        x.fillRect(0, 0, t, t * 0.08);
+        x.fillRect(0, 0, t * 0.08, t);
+        break;
+      case "chevron":
+        x.beginPath();
+        x.moveTo(0, t * 0.75);
+        x.lineTo(t / 2, t * 0.25);
+        x.lineTo(t, t * 0.75);
+        x.stroke();
+        break;
+      case "diagonal":
+        x.beginPath();
+        x.moveTo(-t * 0.1, t * 1.1);
+        x.lineTo(t * 1.1, -t * 0.1);
+        x.stroke();
+        break;
+    }
+    const p = ctx.createPattern(tile, "repeat");
+    if (p) {
+      ctx.fillStyle = p;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+  ctx.restore();
 }

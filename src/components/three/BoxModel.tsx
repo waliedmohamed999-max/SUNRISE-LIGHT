@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { OPEN_TOP, type BoxStyle, type Dimensions, type SurfaceKey } from "@/packaging/types";
+import { RIBBON_COLOR } from "@/design/finishing";
 
 /** Per-surface finish maps (grayscale): roughness, metalness, bump (128 = flat). */
 export type FinishMaps = Partial<Record<SurfaceKey, { rough: HTMLCanvasElement; metal: HTMLCanvasElement; bump: HTMLCanvasElement }>>;
@@ -30,6 +31,8 @@ export interface BoxModelProps {
   onFaceClick?: (key: SurfaceKey) => void;
   /** Face to outline as selected */
   selectedFace?: SurfaceKey | null;
+  /** Order add-ons with a 3D effect (ribbon handles, satin bow, foam insert, partitions) */
+  addons?: string[];
 }
 
 function Outline({ w, h }: { w: number; h: number }) {
@@ -136,8 +139,8 @@ function Face({
   );
 }
 
-/** Twisted paper handle for carrier bags. */
-function Handle({ L, H, z, color }: { L: number; H: number; z: number; color: string }) {
+/** Carrier bag handle: twisted paper, or a satin ribbon. */
+function Handle({ L, H, z, color, ribbon }: { L: number; H: number; z: number; color: string; ribbon?: boolean }) {
   const geo = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-L * 0.22, H * 0.48, z),
@@ -146,17 +149,68 @@ function Handle({ L, H, z, color }: { L: number; H: number; z: number; color: st
       new THREE.Vector3(L * 0.2, H * 0.72, z),
       new THREE.Vector3(L * 0.22, H * 0.48, z),
     ]);
-    return new THREE.TubeGeometry(curve, 48, Math.max(0.012, L * 0.012), 8, false);
-  }, [L, H, z]);
+    return new THREE.TubeGeometry(curve, 48, Math.max(0.012, L * (ribbon ? 0.016 : 0.012)), ribbon ? 4 : 8, false);
+  }, [L, H, z, ribbon]);
   useEffect(() => () => geo.dispose(), [geo]);
   return (
     <mesh geometry={geo} castShadow>
-      <meshStandardMaterial color={color} roughness={0.9} />
+      <meshStandardMaterial color={ribbon ? RIBBON_COLOR : color} roughness={ribbon ? 0.35 : 0.9} />
     </mesh>
   );
 }
 
-export function BoxModel({ dims, boxStyle, canvases, textureVersion, materialColor, lidOpen = false, size = 2.6, finishMaps, insideColor, onFaceClick, selectedFace }: BoxModelProps) {
+/** Satin bow sitting on the lid (drawn with the ribbon band on the faces). */
+function Bow({ L, W }: { L: number; W: number }) {
+  const r = Math.min(L, W) * 0.12;
+  return (
+    <group position={[0, 0.002, W / 2]}>
+      {[-1, 1].map((d) => (
+        <mesh key={d} position={[d * r * 0.9, r * 0.35, 0]} rotation={[0, 0, d * 0.35]} scale={[1, 0.62, 0.5]} castShadow>
+          <torusGeometry args={[r, r * 0.22, 10, 32]} />
+          <meshStandardMaterial color={RIBBON_COLOR} roughness={0.35} />
+        </mesh>
+      ))}
+      <mesh position={[0, r * 0.2, 0]} castShadow>
+        <sphereGeometry args={[r * 0.3, 16, 12]} />
+        <meshStandardMaterial color={RIBBON_COLOR} roughness={0.35} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Inside fittings: a foam bed with a cut-out, or cross partitions. */
+function Insert({ L, W, H, kind, color }: { L: number; W: number; H: number; kind: "foam" | "partitions"; color: string }) {
+  if (kind === "foam") {
+    const t = H * 0.35;
+    return (
+      <group position={[0, H / 2 - t / 2 - H * 0.04, 0]}>
+        <mesh receiveShadow>
+          <boxGeometry args={[L * 0.985, t, W * 0.985]} />
+          <meshStandardMaterial color="#2B2C31" roughness={1} />
+        </mesh>
+        <mesh position={[0, t / 2 + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[L * 0.55, W * 0.5]} />
+          <meshStandardMaterial color="#121216" roughness={1} />
+        </mesh>
+      </group>
+    );
+  }
+  const h = H * 0.92;
+  return (
+    <group position={[0, -H / 2 + h / 2, 0]}>
+      <mesh>
+        <boxGeometry args={[L * 0.985, h, 0.006]} />
+        <meshStandardMaterial color={color} roughness={0.9} />
+      </mesh>
+      <mesh>
+        <boxGeometry args={[0.006, h, W * 0.985]} />
+        <meshStandardMaterial color={color} roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+export function BoxModel({ dims, boxStyle, canvases, textureVersion, materialColor, lidOpen = false, size = 2.6, finishMaps, insideColor, onFaceClick, selectedFace, addons = [] }: BoxModelProps) {
   const openTop = OPEN_TOP.includes(boxStyle);
   const k = size / Math.max(dims.length, dims.width, dims.height);
   const L = dims.length * k;
@@ -196,16 +250,19 @@ export function BoxModel({ dims, boxStyle, canvases, textureVersion, materialCol
       {openTop ? (
         boxStyle === "bag" && (
           <>
-            <Handle L={L} H={H} z={W / 2 - 0.002} color={materialColor} />
-            <Handle L={L} H={H} z={-W / 2 + 0.002} color={materialColor} />
+            <Handle L={L} H={H} z={W / 2 - 0.002} color={materialColor} ribbon={addons.includes("ribbon-handles")} />
+            <Handle L={L} H={H} z={-W / 2 + 0.002} color={materialColor} ribbon={addons.includes("ribbon-handles")} />
           </>
         )
       ) : (
         /* Top / lid hinges along the back-top edge */
         <group ref={lidRef} position={[0, H / 2, -W / 2]}>
           <Face w={L} h={W} canvas={c.top} finish={fm.top} version={v("top")} inside={inside} position={[0, 0.0005, W / 2]} rotation={[-Math.PI / 2, 0, 0]} {...pick("top")} />
+          {addons.includes("satin-ribbon") && <Bow L={L} W={W} />}
         </group>
       )}
+      {boxStyle !== "bag" && addons.includes("foam-insert") && <Insert L={L} W={W} H={H} kind="foam" color={inside} />}
+      {boxStyle !== "bag" && !addons.includes("foam-insert") && addons.includes("inserts") && <Insert L={L} W={W} H={H} kind="partitions" color={inside} />}
       {!lidOpen && !openTop && (
         <lineSegments geometry={edges} scale={[L, H, W]}>
           <lineBasicMaterial color="#100904" transparent opacity={0.35} />
