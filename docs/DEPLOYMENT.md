@@ -36,7 +36,11 @@ Put a TLS-terminating reverse proxy (nginx, Caddy, a cloud load balancer) in fro
 | `S3_ENDPOINT`, `S3_REGION`, `S3_FORCE_PATH_STYLE`, `S3_PREFIX`, `S3_SSE` | Optional: endpoint for R2/MinIO/other S3-compatible services, region (default `auto`), `true` for path-style (MinIO), key prefix, `AES256` to request server-side encryption |
 | `MAX_UPLOAD_MB` | Upload limit (default 10) |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `SALES_TEAM_EMAIL` | Optional. Without them, no email is sent (recorded as `SKIPPED`). |
-| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | First super admin, used only by the seed script |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | First super admin, used only by the seed script. In production the seed refuses passwords shorter than 14 characters or common ones, and never creates a second super admin or overwrites an existing account. |
+| `MFA_ENCRYPTION_KEY` | ≥ 32 random characters; encrypts two-step verification secrets. Keep it in your secret store and back it up — changing it invalidates existing enrolments. |
+| `REQUIRE_STAFF_MFA` | `true` in production: staff must enable two-step verification before opening the dashboard. |
+| `TRUST_PROXY_HOPS` | Number of reverse proxies in front of the app (default 1). The client IP for rate limits is read that many entries from the right of `X-Forwarded-For`. |
+| `MIGRATION_DATABASE_URL` | Optional owner credentials used only for `prisma migrate deploy`; the runtime `DATABASE_URL` can then be the least-privilege role from `docs/db-least-privilege.sql`. |
 
 Never commit `.env`.
 
@@ -54,6 +58,10 @@ The quotation document (`/[locale]/quotation/[offerId]`) is print-optimised HTML
 - Files: back up the storage volume / enable bucket versioning.
 - Errors: API errors are logged with `console.error("[api]", …)`; ship stdout to your log platform and add an error tracker (e.g. Sentry) in `src/lib/api.ts`.
 - Audit: security-relevant actions are in `audit_logs` (Admin → Audit log).
+
+## Security controls
+
+Pages send a per-request nonce Content-Security-Policy (no `unsafe-eval` in production), HSTS when `APP_URL` is https, and COOP. API responses are `no-store`. Staff sessions last 12 hours (customers 14 days); the production cookie is `__Host-` prefixed. Security regression tests: `node tests/security-e2e.mjs` against a local or staging instance (synthetic accounts, refuses non-local targets by default). CI (`.github/workflows/ci.yml`) runs a secret scan, lint, type check, tests, dependency audit and build; CodeQL runs weekly.
 
 ## Security checklist
 

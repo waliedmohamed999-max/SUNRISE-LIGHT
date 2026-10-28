@@ -3,29 +3,45 @@
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { Alert, Button, Field, inputClass, Spinner } from "@/components/ui";
+import { PASSWORD_MESSAGES } from "@/lib/password-policy";
 
 /** Change own password (current + new, confirmed). */
 export function PasswordForm() {
   const { locale, t } = useI18n();
   const ar = locale === "ar";
   const [f, setF] = useState({ current: "", next: "", confirm: "" });
-  const [state, setState] = useState<{ busy: boolean; ok?: boolean; error?: string }>({ busy: false });
+  const [state, setState] = useState<{
+    busy: boolean;
+    ok?: boolean;
+    error?: string;
+  }>({ busy: false });
   const mismatch = f.confirm.length > 0 && f.next !== f.confirm;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (mismatch) return;
     setState({ busy: true });
-    const res = await fetch("/api/account/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current: f.current, next: f.next }) });
+    const res = await fetch("/api/account/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current: f.current, next: f.next }),
+    });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const msg =
-        j.error === "wrong_password"
-          ? ar ? "كلمة المرور الحالية غير صحيحة" : "The current password is incorrect"
+      const msg = PASSWORD_MESSAGES[j.error]
+        ? PASSWORD_MESSAGES[j.error][locale]
+        : j.error === "wrong_password"
+          ? ar
+            ? "كلمة المرور الحالية غير صحيحة"
+            : "The current password is incorrect"
           : j.error === "same_password"
-            ? ar ? "اختر كلمة مرور مختلفة عن الحالية" : "Choose a password different from the current one"
+            ? ar
+              ? "اختر كلمة مرور مختلفة عن الحالية"
+              : "Choose a password different from the current one"
             : j.error === "rate_limited"
-              ? ar ? "محاولات كثيرة، حاول لاحقًا." : "Too many attempts, try again later."
+              ? ar
+                ? "محاولات كثيرة، حاول لاحقًا."
+                : "Too many attempts, try again later."
               : t.common.error;
       return setState({ busy: false, error: msg });
     }
@@ -42,7 +58,17 @@ export function PasswordForm() {
         <input type="password" required minLength={8} dir="ltr" autoComplete="new-password" className={inputClass} value={f.next} onChange={(e) => setF({ ...f, next: e.target.value })} />
       </Field>
       <Field label={ar ? "تأكيد كلمة المرور" : "Confirm password"} hint={mismatch ? (ar ? "غير متطابقة" : "Does not match") : undefined}>
-        <input type="password" required minLength={8} dir="ltr" autoComplete="new-password" aria-invalid={mismatch} className={inputClass} value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} />
+        <input
+          type="password"
+          required
+          minLength={8}
+          dir="ltr"
+          autoComplete="new-password"
+          aria-invalid={mismatch}
+          className={inputClass}
+          value={f.confirm}
+          onChange={(e) => setF({ ...f, confirm: e.target.value })}
+        />
       </Field>
       <div className="flex flex-wrap items-center gap-3 sm:col-span-3">
         <Button type="submit" disabled={state.busy || mismatch}>

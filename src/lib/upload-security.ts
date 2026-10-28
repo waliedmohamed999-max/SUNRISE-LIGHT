@@ -39,12 +39,15 @@ function jpegSize(buf: Buffer) {
   return null;
 }
 
+const MAX_SVG_SIDE = 20_000;
+const clampSide = (n: number) => Math.min(MAX_SVG_SIDE, Math.max(1, Math.round(n)));
+
 function svgSize(svg: string) {
   const vb = svg.match(/viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
-  if (vb) return { width: Math.max(1, Math.round(+vb[1])), height: Math.max(1, Math.round(+vb[2])) };
+  if (vb) return { width: clampSide(+vb[1]), height: clampSide(+vb[2]) };
   const w = svg.match(/<svg[^>]*\swidth\s*=\s*["']([\d.]+)/i);
   const h = svg.match(/<svg[^>]*\sheight\s*=\s*["']([\d.]+)/i);
-  if (w && h) return { width: Math.max(1, Math.round(+w[1])), height: Math.max(1, Math.round(+h[1])) };
+  if (w && h) return { width: clampSide(+w[1]), height: clampSide(+h[1]) };
   return { width: 512, height: 512 };
 }
 
@@ -70,11 +73,13 @@ export function inspectImage(data: Buffer, maxBytes: number): InspectedImage {
 
   const png = pngSize(data);
   if (png) {
+    if (!png.width || !png.height) throw new UploadRejected("invalid_dimensions");
     if (png.width * png.height > MAX_PIXELS) throw new UploadRejected("too_many_pixels");
     return { mime: "image/png", ...png, data };
   }
   const jpg = jpegSize(data);
   if (jpg) {
+    if (!jpg.width || !jpg.height) throw new UploadRejected("invalid_dimensions");
     if (jpg.width * jpg.height > MAX_PIXELS) throw new UploadRejected("too_many_pixels");
     return { mime: "image/jpeg", ...jpg, data };
   }

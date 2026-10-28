@@ -21,23 +21,28 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  phone        String?
-  role         Role     @default(CUSTOMER)
-  locale       String   @default("ar")
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  role          Role      @default(CUSTOMER)
+  locale        String    @default("ar")
+  isActive      Boolean   @default(true)
+  /// TOTP two-step verification: AES-GCM encrypted secret (set while enrolling), enabled once confirmed
+  totpSecret    String?
+  totpEnabledAt DateTime?
+  /// last accepted 30-second step — a code cannot be replayed
+  totpLastStep  Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   sessions          Session[]
   profile           CustomerProfile?
   designs           DesignProject[]
   assets            UploadedAsset[]
-  quotationRequests QuotationRequest[]     @relation("RfqCustomer")
-  assignedRequests  QuotationRequest[]     @relation("RfqAssignee")
+  quotationRequests QuotationRequest[]       @relation("RfqCustomer")
+  assignedRequests  QuotationRequest[]       @relation("RfqAssignee")
   statusChanges     QuotationStatusHistory[]
   notes             QuotationNote[]
   offers            QuotationOffer[]
@@ -108,23 +113,23 @@ model PackagingCategory {
 }
 
 model PackagingTemplate {
-  id               String                 @id @default(cuid())
+  id               String   @id @default(cuid())
   /// Stable public identifier, e.g. "shipping-carton"
-  code             String                 @unique
+  code             String   @unique
   /// Key of the parametric geometry engine implemented in code (src/packaging/templates)
   engineKey        String
   categoryId       String
   nameAr           String
   nameEn           String
-  descriptionAr    String                 @default("")
-  descriptionEn    String                 @default("")
-  isEnabled        Boolean                @default(true)
+  descriptionAr    String   @default("")
+  descriptionEn    String   @default("")
+  isEnabled        Boolean  @default(true)
   /// Industry tags (restaurants, perfumes, gifts …) used to filter the catalogue
-  industries       String[]               @default([])
-  sortOrder        Int                    @default(0)
-  currentVersionId String?                @unique
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  industries       String[] @default([])
+  sortOrder        Int      @default(0)
+  currentVersionId String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   category       PackagingCategory      @relation(fields: [categoryId], references: [id])
   currentVersion TemplateVersion?       @relation("CurrentVersion", fields: [currentVersionId], references: [id])
@@ -157,10 +162,10 @@ model TemplateVersion {
   printOptions     Json     @default("[]")
   createdAt        DateTime @default(now())
 
-  template         PackagingTemplate  @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Cascade)
-  currentOf        PackagingTemplate? @relation("CurrentVersion")
-  panels           TemplatePanel[]
-  designs          DesignProject[]
+  template  PackagingTemplate  @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Cascade)
+  currentOf PackagingTemplate? @relation("CurrentVersion")
+  panels    TemplatePanel[]
+  designs   DesignProject[]
 
   @@unique([templateId, version])
   @@map("template_versions")
@@ -188,24 +193,24 @@ enum MaterialKind {
 }
 
 model MaterialType {
-  id             String                 @id @default(cuid())
-  code           String                 @unique
-  nameAr         String
-  nameEn         String
-  kind           MaterialKind
+  id              String                 @id @default(cuid())
+  code            String                 @unique
+  nameAr          String
+  nameEn          String
+  kind            MaterialKind
   /// Thickness / flute description as provided by the factory
-  thickness      String                 @default("")
-  colorHex       String                 @default("#C9A06B")
-  printableSides String                 @default("outside")
-  limitationsAr  String                 @default("")
-  limitationsEn  String                 @default("")
-  isAvailable    Boolean                @default(true)
+  thickness       String                 @default("")
+  colorHex        String                 @default("#C9A06B")
+  printableSides  String                 @default("outside")
+  limitationsAr   String                 @default("")
+  limitationsEn   String                 @default("")
+  isAvailable     Boolean                @default(true)
   /// false = sample/illustrative entry that the factory has not yet confirmed
-  factoryApproved Boolean               @default(false)
-  sortOrder      Int                    @default(0)
-  templateRules  TemplateMaterialRule[]
-  finishings     MaterialFinishing[]
-  quotationItems QuotationItem[]
+  factoryApproved Boolean                @default(false)
+  sortOrder       Int                    @default(0)
+  templateRules   TemplateMaterialRule[]
+  finishings      MaterialFinishing[]
+  quotationItems  QuotationItem[]
 
   @@map("material_types")
 }
@@ -250,23 +255,23 @@ enum DesignStatus {
 }
 
 model DesignProject {
-  id                String          @id @default(cuid())
+  id                String       @id @default(cuid())
   ownerId           String
   name              String
   templateId        String
   templateVersionId String
-  status            DesignStatus    @default(DRAFT)
+  status            DesignStatus @default(DRAFT)
   /// Latest editable design document (see src/design/document.ts)
   document          Json
   thumbnailAssetId  String?
   deletedAt         DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  owner           User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  template        PackagingTemplate  @relation(fields: [templateId], references: [id])
-  templateVersion TemplateVersion    @relation(fields: [templateVersionId], references: [id])
-  thumbnail       UploadedAsset?     @relation("DesignThumbnail", fields: [thumbnailAssetId], references: [id], onDelete: SetNull)
+  owner           User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  template        PackagingTemplate @relation(fields: [templateId], references: [id])
+  templateVersion TemplateVersion   @relation(fields: [templateVersionId], references: [id])
+  thumbnail       UploadedAsset?    @relation("DesignThumbnail", fields: [thumbnailAssetId], references: [id], onDelete: SetNull)
   versions        DesignVersion[]
   quotationItems  QuotationItem[]
 
@@ -277,13 +282,13 @@ model DesignProject {
 /// Immutable snapshot of a design document (explicit saves and every RFQ submission).
 /// Individual design elements live inside the versioned JSON document so that a save is atomic.
 model DesignVersion {
-  id        String        @id @default(cuid())
-  projectId String
-  versionNo Int
-  document  Json
-  note      String?
-  createdAt DateTime      @default(now())
-  project   DesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             String          @id @default(cuid())
+  projectId      String
+  versionNo      Int
+  document       Json
+  note           String?
+  createdAt      DateTime        @default(now())
+  project        DesignProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   quotationItems QuotationItem[]
 
   @@unique([projectId, versionNo])
@@ -416,7 +421,7 @@ model QuotationOffer {
   unitPrice   Decimal             @db.Decimal(12, 3)
   quantity    Int
   subtotal    Decimal             @db.Decimal(14, 2)
-  taxPercent  Decimal             @db.Decimal(5, 2) @default(0)
+  taxPercent  Decimal             @default(0) @db.Decimal(5, 2)
   total       Decimal             @db.Decimal(14, 2)
   validUntil  DateTime?
   leadTime    String              @default("")

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
 import { AdminNav } from "@/components/admin/AdminNav";
+import { staffMfaRequired } from "@/lib/mfa-policy";
 
 export const metadata = { robots: { index: false, follow: false } };
 
@@ -14,6 +15,8 @@ export default async function AdminLayout({ children, params }: { children: Reac
   const user = await getCurrentUser();
   if (!user) redirect(`/${locale}/login?next=/${locale}/admin`);
   if (!can(user.role, "admin.access")) notFound();
+  // policy: staff must protect their account with two-step verification before using the dashboard
+  if (staffMfaRequired() && !user.mfaEnabled) redirect(`/${locale}/account/profile?mfa=required#mfa`);
   const t = getDict(locale);
   const perms = {
     quotes: can(user.role, "rfq.view"),

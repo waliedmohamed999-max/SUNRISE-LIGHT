@@ -28,7 +28,8 @@ const portfolioSchema = z.object({
   titleEn: z.string().trim().max(200).default(""),
   descriptionAr: z.string().trim().max(2000).default(""),
   descriptionEn: z.string().trim().max(2000).default(""),
-  imageUrl: z.string().trim().url().max(500).nullable().or(z.literal("")).default(null),
+  // https only: the URL ends up in an <img src> on the public portfolio page
+  imageUrl: z.string().trim().url().max(500).startsWith("https://").nullable().or(z.literal("")).default(null),
   published: z.boolean().default(false),
   sortOrder: z.number().int().min(0).max(1000).default(0),
 });

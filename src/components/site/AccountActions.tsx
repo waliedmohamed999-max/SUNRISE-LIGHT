@@ -84,7 +84,7 @@ export function DesignCardActions({ id, name }: { id: string; name: string }) {
 }
 
 export function QuoteCustomerActions({ id, status }: { id: string; status: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const [mode, setMode] = useState<null | "revision">(null);
   const [msg, setMsg] = useState("");
@@ -97,8 +97,14 @@ export function QuoteCustomerActions({ id, status }: { id: string; status: strin
       await send(`/api/rfq/${id}/action`, "POST", { action, message: msg || undefined });
       setMode(null);
       router.refresh();
-    } catch {
-      setError(t.common.error);
+    } catch (e) {
+      setError(
+        e instanceof Error && e.message === "offer_expired"
+          ? locale === "ar"
+            ? "انتهت صلاحية عرض السعر. اطلب تعديلًا ليرسل لك الفريق عرضًا محدّثًا."
+            : "This quotation has expired. Request a revision to receive an updated one."
+          : t.common.error,
+      );
     } finally {
       setBusy(false);
     }

@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { verifyPassword } from "@/lib/auth";
+import { mfaAvailable } from "@/lib/totp";
+import { staffMfaRequired } from "@/lib/mfa-policy";
 import { getCurrentUser } from "@/lib/auth";
 import { can, STAFF_ROLES } from "@/lib/rbac";
 import type { Locale } from "@/i18n/config";
@@ -48,7 +50,17 @@ export default async function AdminSystem({ params }: { params: Promise<{ locale
   const contactFilled = contact.filter((c) => c.valueAr.trim() || c.valueEn.trim()).length;
   const emailCount = (s: string) => notif.filter((n) => n.channel === "EMAIL" && n.status === s).reduce((a, n) => a + n._count, 0);
 
+  const staffMfa = await db.user.groupBy({ by: ["totpEnabledAt"], where: { role: { in: STAFF_ROLES }, isActive: true }, _count: true });
+  const staffTotal = staffMfa.reduce((a, g) => a + g._count, 0);
+  const staffWithMfa = staffMfa.filter((g) => g.totpEnabledAt).reduce((a, g) => a + g._count, 0);
   const checks: Check[] = [
+    {
+      label: ar ? "التحقق بخطوتين لفريق المصنع" : "Staff two-step verification",
+      ok: !mfaAvailable() ? false : staffWithMfa === staffTotal ? true : null,
+      detail: !mfaAvailable()
+        ? ar ? "غير متاح — MFA_ENCRYPTION_KEY غير مهيأ" : "Unavailable — MFA_ENCRYPTION_KEY not set"
+        : `${staffWithMfa} / ${staffTotal} ${ar ? "حساب مفعّل" : "accounts enabled"} · ${staffMfaRequired() ? (ar ? "إلزامي" : "required") : ar ? "اختياري (REQUIRE_STAFF_MFA)" : "optional (REQUIRE_STAFF_MFA)"}`,
+    },
     {
       label: ar ? "كلمة مرور المدير" : "Admin password",
       ok: weakAdmins.length === 0,

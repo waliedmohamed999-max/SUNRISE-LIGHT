@@ -3,6 +3,8 @@ import { api, clientIp, ok, parseJson } from "@/lib/api";
 import { db } from "@/lib/db";
 import { createSession, hashPassword, HttpError, requireUser, verifyPassword } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { passwordProblem } from "@/lib/password-policy";
+import { isStaff } from "@/lib/rbac";
 
 const schema = z.object({ current: z.string().min(1).max(200), next: z.string().min(8).max(200) });
 
@@ -14,6 +16,8 @@ export const POST = api(
     const row = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } });
     if (!(await verifyPassword(current, row.passwordHash))) throw new HttpError(400, "wrong_password");
     if (current === next) throw new HttpError(400, "same_password");
+    const weak = passwordProblem(next, { email: user.email, minLength: isStaff(user.role) ? 10 : 8 });
+    if (weak) throw new HttpError(422, weak);
     await db.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(next) } });
       await tx.session.deleteMany({ where: { userId: user.id } });

@@ -3,7 +3,7 @@ import { checkEnv } from "@/lib/env-check";
 import { buildSiteInfo, safeUrl, telUrl, validateSetting, whatsappUrl } from "@/lib/site-settings";
 
 describe("startup configuration check", () => {
-  const base = { NODE_ENV: "production", DATABASE_URL: "postgres://x", APP_URL: "https://sunrise.example", RESEND_API_KEY: "k", EMAIL_FROM: "a@b.c" };
+  const base = { NODE_ENV: "production", DATABASE_URL: "postgres://x", APP_URL: "https://sunrise.example", RESEND_API_KEY: "k", EMAIL_FROM: "a@b.c", MFA_ENCRYPTION_KEY: "x".repeat(40), REQUIRE_STAFF_MFA: "true" };
   it("passes a complete production config", () => {
     expect(checkEnv(base)).toEqual([]);
   });
@@ -11,6 +11,9 @@ describe("startup configuration check", () => {
     expect(checkEnv({ ...base, DATABASE_URL: undefined }).some((i) => i.level === "error")).toBe(true);
     expect(checkEnv({ ...base, STORAGE_DRIVER: "s3" }).some((i) => i.level === "error")).toBe(true);
     expect(checkEnv({ ...base, STORAGE_DRIVER: "s3", S3_BUCKET: "b", S3_ACCESS_KEY_ID: "k", S3_SECRET_ACCESS_KEY: "s" })).toEqual([]);
+  });
+  it("errors when staff MFA is required but the encryption key is missing", () => {
+    expect(checkEnv({ ...base, MFA_ENCRYPTION_KEY: undefined }).some((i) => i.level === "error")).toBe(true);
   });
   it("warns on http APP_URL, missing email and the example admin password", () => {
     const issues = checkEnv({ ...base, APP_URL: "http://x", RESEND_API_KEY: undefined, SEED_ADMIN_PASSWORD: "change-me-now-123" });

@@ -8,7 +8,7 @@ import { Alert, Button, Card, Field, inputClass } from "@/components/ui";
 
 const ROLES: Role[] = ["SUPER_ADMIN", "FACTORY_MANAGER", "SALES", "TECH_REVIEWER"];
 
-export function UsersManager({ users, currentUserId }: { users: { id: string; name: string; email: string; role: Role; isActive: boolean }[]; currentUserId: string }) {
+export function UsersManager({ users, currentUserId }: { users: { id: string; name: string; email: string; role: Role; isActive: boolean; mfa: boolean }[]; currentUserId: string }) {
   const { t, locale } = useI18n();
   const ar = locale === "ar";
   const [reset, setReset] = useState<{ id: string; name: string; password: string; done?: boolean } | null>(null);
@@ -72,7 +72,7 @@ export function UsersManager({ users, currentUserId }: { users: { id: string; na
         <table className="w-full min-w-[600px] text-sm">
           <thead className="bg-paper text-xs text-ink-500">
             <tr>
-              {[t.auth.name, t.auth.email, t.admin.role, t.admin.active, ar ? "كلمة المرور" : "Password"].map((h) => (
+              {[t.auth.name, t.auth.email, t.admin.role, t.admin.active, ar ? "التحقق بخطوتين" : "Two-step", ar ? "كلمة المرور" : "Password"].map((h) => (
                 <th key={h} className="px-4 py-3 text-start font-semibold">
                   {h}
                 </th>
@@ -95,6 +95,20 @@ export function UsersManager({ users, currentUserId }: { users: { id: string; na
                 </td>
                 <td className="px-4 py-3">
                   <input type="checkbox" aria-label={t.admin.active} checked={u.isActive} disabled={u.id === currentUserId} onChange={() => call("PATCH", { id: u.id, isActive: !u.isActive })} />
+                </td>
+                <td className="px-4 py-3 text-xs">
+                  {u.mfa ? (
+                    <span className="flex items-center gap-2">
+                      <span className="font-semibold text-ok">{ar ? "مفعّل" : "On"}</span>
+                      {u.id !== currentUserId && (
+                        <button type="button" onClick={() => window.confirm(ar ? `إعادة ضبط التحقق بخطوتين لـ ${u.name}؟ سيُسجّل خروجه ويحتاج لإعداده من جديد.` : `Reset two-step verification for ${u.name}? They will be signed out and must set it up again.`) && call("PATCH", { id: u.id, resetMfa: true })} className="text-navy underline-offset-4 hover:underline">
+                          {ar ? "إعادة ضبط" : "Reset"}
+                        </button>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-warn">{ar ? "غير مفعّل" : "Off"}</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {u.id === currentUserId ? (

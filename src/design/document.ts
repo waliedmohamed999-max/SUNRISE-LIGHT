@@ -46,8 +46,8 @@ export const imageElementSchema = baseElement.extend({
   type: z.literal("image"),
   assetId: z.string().min(1).max(40),
   mime: z.enum(["image/png", "image/jpeg", "image/svg+xml"]),
-  naturalWidth: z.number().int().positive(),
-  naturalHeight: z.number().int().positive(),
+  naturalWidth: z.number().int().positive().max(100_000),
+  naturalHeight: z.number().int().positive().max(100_000),
   /** recolour the whole logo in one ink (one-colour print, white logo on dark board) */
   tint: hex.optional(),
 });

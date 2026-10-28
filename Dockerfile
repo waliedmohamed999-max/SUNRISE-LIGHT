@@ -34,5 +34,6 @@ RUN mkdir -p /app/storage && chown -R app:app /app/storage
 USER app
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
-# Apply pending migrations, then start
-CMD ["sh", "-c", "node /opt/prisma-cli/node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma && node server.js"]
+# Migrations may run with separate owner credentials (MIGRATION_DATABASE_URL) so the runtime DATABASE_URL can be a
+# least-privilege role (data access only, no DDL). Without it, DATABASE_URL is used for both.
+CMD ["sh", "-c", "DATABASE_URL=\"${MIGRATION_DATABASE_URL:-$DATABASE_URL}\" node /opt/prisma-cli/node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma && node server.js"]

@@ -4,6 +4,7 @@
  */
 import { PrismaClient, type MaterialKind } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { passwordProblem } from "../src/lib/password-policy";
 
 const db = new PrismaClient();
 
@@ -410,13 +411,25 @@ async function main() {
 
   const email = process.env.SEED_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;
+  // First-administrator provisioning only: never overwrites an existing account, never adds a second
+  // super admin, and refuses a weak or example password when seeding a production database.
   if (email && password) {
-    await db.user.upsert({
-      where: { email: email.toLowerCase() },
-      update: {},
-      create: { email: email.toLowerCase(), name: "Super Admin", role: "SUPER_ADMIN", passwordHash: await bcrypt.hash(password, 12) },
-    });
-    console.log(`Super admin ready: ${email}`);
+    const production = process.env.NODE_ENV === "production" || process.env.APP_ENV === "production";
+    const existing = await db.user.findUnique({ where: { email: email.toLowerCase() }, select: { id: true } });
+    const admins = await db.user.count({ where: { role: "SUPER_ADMIN" } });
+    if (existing) {
+      console.log(`Super admin ${email} already exists — password unchanged.`);
+    } else if (admins > 0) {
+      console.log("A super admin already exists — SEED_ADMIN_* ignored. Create further staff from Admin → Users.");
+    } else {
+      const weak = passwordProblem(password, { email, minLength: production ? 14 : 8 });
+      if (weak) {
+        if (production) throw new Error(`Refusing to create the first super admin in production: SEED_ADMIN_PASSWORD rejected (${weak}).`);
+        console.warn(`Warning: SEED_ADMIN_PASSWORD is weak (${weak}) — fine for local development only.`);
+      }
+      await db.user.create({ data: { email: email.toLowerCase(), name: "Super Admin", role: "SUPER_ADMIN", passwordHash: await bcrypt.hash(password, 12) } });
+      console.log(`Super admin created: ${email} — change the password after the first sign-in and enable two-step verification.`);
+    }
   }
   console.log("Seed complete.");
 }

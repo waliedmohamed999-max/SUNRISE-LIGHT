@@ -5,8 +5,19 @@ import { Prisma } from "@prisma/client";
 import { HttpError } from "./auth";
 import { rateLimit } from "./rate-limit";
 
+/**
+ * Client address for rate limits and audit logs.
+ * The left-most X-Forwarded-For entries are written by the client and can be forged, so the address is
+ * taken TRUST_PROXY_HOPS entries from the right (default 1 = the address seen by our own reverse proxy).
+ */
 export function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
+  const hops = Math.max(1, Number(process.env.TRUST_PROXY_HOPS) || 1);
+  const chain = (req.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const ip = chain.length ? chain[Math.max(0, chain.length - hops)] : req.headers.get("x-real-ip")?.trim();
+  return ip && /^[0-9a-fA-F:.]{2,45}$/.test(ip) ? ip : "unknown";
 }
 
 /** CSRF defence for cookie-authenticated mutations: the Origin must match the host. */
@@ -30,7 +41,8 @@ export function api<P = Record<string, string>>(
   handler: (req: NextRequest, ctx: Ctx<P>) => Promise<Response>,
   opts: { rate?: { key: string; limit: number; windowMs: number } } = {},
 ) {
-  return async (req: NextRequest, ctx: Ctx<P>) => {
+  return async (req: NextRequest, ctx: Ctx<P>) => noStore(await run(req, ctx));
+  async function run(req: NextRequest, ctx: Ctx<P>): Promise<Response> {
     try {
       assertSameOrigin(req);
       if (opts.rate && !rateLimit(`${opts.rate.key}:${clientIp(req)}`, opts.rate.limit, opts.rate.windowMs)) {
@@ -44,7 +56,13 @@ export function api<P = Record<string, string>>(
       console.error("[api]", req.method, req.nextUrl.pathname, err);
       return NextResponse.json({ error: "internal" }, { status: 500 });
     }
-  };
+  }
+}
+
+/** API responses carry personal data: never store them in shared or browser caches unless a route says otherwise. */
+function noStore(res: Response): Response {
+  if (!res.headers.has("Cache-Control")) res.headers.set("Cache-Control", "no-store");
+  return res;
 }
 
 /** Largest JSON body accepted (design documents stay well below this; files go through /api/assets). */

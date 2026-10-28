@@ -3,6 +3,7 @@ import { api, clientIp, ok, parseJson } from "@/lib/api";
 import { db } from "@/lib/db";
 import { createSession, hashPassword, HttpError } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { passwordProblem } from "@/lib/password-policy";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -16,6 +17,8 @@ const schema = z.object({
 export const POST = api(
   async (req) => {
     const body = await parseJson(req, schema);
+    const weak = passwordProblem(body.password, { email: body.email });
+    if (weak) throw new HttpError(422, weak);
     if (await db.user.findUnique({ where: { email: body.email } })) throw new HttpError(409, "email_taken");
     const user = await db.$transaction(async (tx) => {
       const company = body.company ? await tx.company.create({ data: { name: body.company } }) : null;

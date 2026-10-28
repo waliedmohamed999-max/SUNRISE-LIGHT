@@ -23,6 +23,13 @@ export const POST = api<{ id: string }>(async (req, { params }) => {
   if (!request) throw new HttpError(404, "not_found");
   if (body.action === "revision" && !body.message) throw new HttpError(400, "message_required");
   const to = TARGET[body.action];
+  if (body.action === "approve") {
+    // only the latest quotation actually sent can be approved, and only while it is valid
+    const offer = await db.quotationOffer.findFirst({ where: { requestId: id, sentAt: { not: null } }, orderBy: { sentAt: "desc" }, select: { validUntil: true } });
+    if (!offer) throw new HttpError(409, "no_offer");
+    const endOfValidity = offer.validUntil ? new Date(offer.validUntil.getTime() + 864e5) : null;
+    if (endOfValidity && endOfValidity < new Date()) throw new HttpError(409, "offer_expired");
+  }
 
   await db.$transaction(async (tx) => {
     await transition(tx, { requestId: id, from: request.status, to, allowed: CUSTOMER_TRANSITIONS, actorId: user.id, note: body.message });

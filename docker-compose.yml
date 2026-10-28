@@ -6,10 +6,14 @@ services:
       POSTGRES_USER: sunrise
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: sunrise_light
+    # local development access only: bound to the loopback interface, never to the network.
+    # In production remove this mapping entirely (the app reaches the database over the compose network).
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sunrise -d sunrise_light"]
       interval: 5s
@@ -25,10 +29,17 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://sunrise:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/sunrise_light
+    # publish on loopback; the TLS reverse proxy on the host forwards to it
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - uploads:/app/storage
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
 
 volumes:
   pgdata:

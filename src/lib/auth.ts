@@ -6,10 +6,14 @@ import type { Role, User } from "@prisma/client";
 import { db } from "./db";
 import { can, isStaff, type Permission } from "./rbac";
 
-export const SESSION_COOKIE = "sl_session";
-const SESSION_DAYS = 14;
+import { SESSION_COOKIE } from "./session-cookie";
 
-export type SessionUser = Pick<User, "id" | "email" | "name" | "phone" | "role" | "locale">;
+export { SESSION_COOKIE };
+const SESSION_DAYS = 14;
+/** Staff sessions are short-lived: they can change prices, customer data and settings. */
+const STAFF_SESSION_HOURS = 12;
+
+export type SessionUser = Pick<User, "id" | "email" | "name" | "phone" | "role" | "locale"> & { mfaEnabled: boolean };
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -18,7 +22,10 @@ export const verifyPassword = (pw: string, hash: string) => bcrypt.compare(pw, h
 
 export async function createSession(userId: string, meta: { ip?: string; userAgent?: string } = {}) {
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 864e5);
+  const { role } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
+  const expiresAt = new Date(Date.now() + (isStaff(role) ? STAFF_SESSION_HOURS * 36e5 : SESSION_DAYS * 864e5));
+  // housekeeping: drop this user's expired sessions
+  await db.session.deleteMany({ where: { userId, expiresAt: { lt: new Date() } } });
   await db.session.create({
     data: { tokenHash: hashToken(token), userId, expiresAt, ip: meta.ip, userAgent: meta.userAgent?.slice(0, 300) },
   });
@@ -44,11 +51,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!token) return null;
   const session = await db.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, email: true, name: true, phone: true, role: true, locale: true, isActive: true } } },
+    include: { user: { select: { id: true, email: true, name: true, phone: true, role: true, locale: true, isActive: true, totpEnabledAt: true } } },
   });
   if (!session || session.expiresAt < new Date() || !session.user.isActive) return null;
-  const { isActive: _active, ...user } = session.user;
-  return user;
+  const { isActive: _active, totpEnabledAt, ...user } = session.user;
+  return { ...user, mfaEnabled: !!totpEnabledAt };
 }
 
 export class HttpError extends Error {

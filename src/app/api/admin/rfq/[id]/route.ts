@@ -29,6 +29,9 @@ export const PATCH = api<{ id: string }>(async (req, { params }) => {
     }
   }
   if (body.status === "QUOTE_SENT") throw new HttpError(409, "use_offer_endpoint");
+  // commercial decisions (recording an approval, cancelling) belong to roles that can send quotations,
+  // not to technical reviewers
+  if ((body.status === "APPROVED" || body.status === "CANCELLED") && !can(user.role, "rfq.send")) throw new HttpError(403, "forbidden");
 
   await db.$transaction(async (tx) => {
     if (body.status && body.status !== request.status) {

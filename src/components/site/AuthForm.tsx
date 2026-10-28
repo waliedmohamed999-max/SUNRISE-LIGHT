@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";
+import { safeNextPath } from "@/lib/safe-redirect";
+import { PASSWORD_MESSAGES } from "@/lib/password-policy";
 import { Alert, Button, EyeIcon, Field, inputClass, Spinner } from "@/components/ui";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
@@ -11,11 +13,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const search = useSearchParams();
   const rawNext = search.get("next") ?? "";
-  // Only allow same-site relative redirects
-  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
+  // Only same-site, locale-prefixed paths (see safeNextPath)
+  const next = safeNextPath(rawNext);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // two-step verification: the code field appears once the password has been accepted
+  const [needCode, setNeedCode] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -29,19 +33,26 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         body: JSON.stringify(mode === "register" ? { ...fd, locale } : fd),
       });
       const j = await res.json().catch(() => ({}));
+      if (!res.ok && (j.error === "mfa_required" || j.error === "mfa_invalid")) {
+        setNeedCode(true);
+        if (j.error === "mfa_invalid") setError(locale === "ar" ? "رمز التحقق غير صحيح أو مستخدم من قبل" : "The verification code is wrong or already used");
+        return;
+      }
       if (!res.ok) {
         setError(
-          j.error === "invalid_credentials"
-            ? t.auth.invalid
-            : j.error === "email_taken"
-              ? t.auth.exists
-              : j.error === "rate_limited"
-                ? locale === "ar"
-                  ? "محاولات كثيرة، حاول لاحقاً."
-                  : "Too many attempts, try again later."
-                : j.error === "validation"
-                  ? (j.issues?.map((i: { path: string }) => i.path).join(", ") ?? "") + " — " + t.common.error
-                  : t.common.error,
+          PASSWORD_MESSAGES[j.error]
+            ? PASSWORD_MESSAGES[j.error][locale]
+            : j.error === "invalid_credentials"
+              ? t.auth.invalid
+              : j.error === "email_taken"
+                ? t.auth.exists
+                : j.error === "rate_limited"
+                  ? locale === "ar"
+                    ? "محاولات كثيرة، حاول لاحقاً."
+                    : "Too many attempts, try again later."
+                  : j.error === "validation"
+                    ? (j.issues?.map((i: { path: string }) => i.path).join(", ") ?? "") + " — " + t.common.error
+                    : t.common.error,
         );
         return;
       }
@@ -77,7 +88,15 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       </Field>
       <Field label={t.auth.password} hint={mode === "register" ? t.auth.passwordHint : undefined}>
         <div className="relative">
-          <input name="password" type={showPassword ? "text" : "password"} required minLength={mode === "register" ? 8 : 1} dir="ltr" autoComplete={mode === "register" ? "new-password" : "current-password"} className={`${inputClass} pe-11`} />
+          <input
+            name="password"
+            type={showPassword ? "text" : "password"}
+            required
+            minLength={mode === "register" ? 8 : 1}
+            dir="ltr"
+            autoComplete={mode === "register" ? "new-password" : "current-password"}
+            className={`${inputClass} pe-11`}
+          />
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
@@ -89,6 +108,21 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </button>
         </div>
       </Field>
+      {needCode && (
+        <Field label={locale === "ar" ? "رمز التحقق (من تطبيق المصادقة)" : "Verification code (authenticator app)"}>
+          <input
+            name="code"
+            required
+            autoFocus
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9 ]{6,7}"
+            maxLength={7}
+            dir="ltr"
+            className={`${inputClass} num text-center text-lg tracking-[0.4em]`}
+          />
+        </Field>
+      )}
       {error && <Alert tone="danger">{error}</Alert>}
       <Button type="submit" size="lg" className="mt-2 w-full" disabled={pending}>
         {pending && <Spinner />}

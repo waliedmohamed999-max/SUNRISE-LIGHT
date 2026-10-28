@@ -4,26 +4,13 @@ import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
-import {
-  TemplatesBrowser,
-  type TemplateRow,
-} from "@/components/admin/TemplatesBrowser";
+import { TemplatesBrowser, type TemplateRow } from "@/components/admin/TemplatesBrowser";
 
-export default async function AdminTemplates({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ locale: Locale }>;
-  searchParams: Promise<{ filter?: string }>;
-}) {
+export default async function AdminTemplates({ params, searchParams }: { params: Promise<{ locale: Locale }>; searchParams: Promise<{ filter?: string }> }) {
   const { locale } = await params;
   const { filter } = await searchParams;
   const user = (await getCurrentUser())!;
-  if (
-    !can(user.role, "template.manage") &&
-    !can(user.role, "template.validate")
-  )
-    notFound();
+  if (!can(user.role, "template.manage") && !can(user.role, "template.validate")) notFound();
   const t = getDict(locale);
   const [templates, materials] = await Promise.all([
     db.packagingTemplate.findMany({
@@ -45,9 +32,7 @@ export default async function AdminTemplates({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-navy">{t.admin.templates}</h1>
-        <p className="mt-1 max-w-3xl text-sm text-ink-500">
-          {t.admin.newVersionNote}
-        </p>
+        <p className="mt-1 max-w-3xl text-sm text-ink-500">{t.admin.newVersionNote}</p>
         <p className="mt-1 max-w-3xl text-sm text-ink-500">
           {locale === "ar"
             ? "إضافة نوع عبوة جديد يتطلب تعريف معادلات الهندسة في الكود (src/packaging/templates) ثم ربطه هنا."
@@ -66,10 +51,7 @@ export default async function AdminTemplates({
                   meta: {
                     versions: tpl._count.versions,
                     designs: tpl._count.designs,
-                    category:
-                      locale === "ar"
-                        ? tpl.category.nameAr
-                        : tpl.category.nameEn,
+                    category: locale === "ar" ? tpl.category.nameAr : tpl.category.nameEn,
                     engineKey: tpl.engineKey,
                     code: tpl.code,
                   },
