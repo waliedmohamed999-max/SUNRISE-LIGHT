@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getDict } from "@/i18n/dictionaries";
+import { getContent } from "@/lib/content";
 import type { Locale } from "@/i18n/config";
 import { TextPage } from "@/components/site/TextPage";
 
@@ -28,5 +29,7 @@ We use only essential cookies for sign-in and to remember your preferred languag
 export default async function PrivacyPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   const t = getDict(locale);
-  return <TextPage locale={locale} title={t.pages.privacyTitle} crumb={t.pages.privacyTitle} body={BODY[locale]} notice={t.pages.legalDraft} />;
+  // approved text from Admin → Website content ("privacy.body") replaces the built-in draft and its review notice
+  const approved = (await getContent(locale))("privacy.body").trim();
+  return <TextPage locale={locale} title={t.pages.privacyTitle} crumb={t.pages.privacyTitle} body={approved || BODY[locale]} notice={approved ? undefined : t.pages.legalDraft} />;
 }

@@ -47,11 +47,19 @@ export function api<P = Record<string, string>>(
   };
 }
 
+/** Largest JSON body accepted (design documents stay well below this; files go through /api/assets). */
+const MAX_JSON_BYTES = 2 * 1024 * 1024;
+
 export async function parseJson<S extends ZodTypeAny>(req: NextRequest, schema: S): Promise<output<S>> {
+  // oversized bodies are rejected before parsing or validation, so they cannot exhaust memory
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_JSON_BYTES) throw new HttpError(413, "payload_too_large");
   let body: unknown;
   try {
-    body = await req.json();
-  } catch {
+    const text = await req.text();
+    if (Buffer.byteLength(text) > MAX_JSON_BYTES) throw new HttpError(413, "payload_too_large");
+    body = JSON.parse(text);
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
     throw new HttpError(400, "invalid_json");
   }
   return schema.parse(body);

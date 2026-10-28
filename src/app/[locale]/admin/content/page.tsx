@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
+import { isSettingKey, PAGE_TEXT_KEYS } from "@/lib/site-settings";
 import { ContentEditor, FaqEditor, PortfolioEditor } from "@/components/admin/ContentEditors";
 
 export default async function AdminContent({ params }: { params: Promise<{ locale: Locale }> }) {
@@ -19,7 +20,12 @@ export default async function AdminContent({ params }: { params: Promise<{ local
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-navy">{t.admin.content}</h1>
-      <ContentEditor entries={content.map(({ key, valueAr, valueEn }) => ({ key, valueAr, valueEn }))} />
+      <ContentEditor
+        entries={[
+          ...content.filter((r) => !isSettingKey(r.key)).map(({ key, valueAr, valueEn }) => ({ key, valueAr, valueEn })),
+          ...PAGE_TEXT_KEYS.filter((k) => !content.some((r) => r.key === k)).map((key) => ({ key, valueAr: "", valueEn: "" })),
+        ]}
+      />
       <FaqEditor items={faq} />
       <PortfolioEditor items={portfolio.map((p) => ({ ...p, imageUrl: p.imageUrl ?? "" }))} />
     </div>

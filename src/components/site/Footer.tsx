@@ -4,6 +4,7 @@ import { getDict } from "@/i18n/dictionaries";
 import { LogoMark } from "./Logo";
 import { ShareButton } from "./ShareButton";
 import { buttonClass } from "@/components/ui";
+import { telUrl, whatsappUrl, type SiteInfo } from "@/lib/site-settings";
 
 /** Scattered kraft cartons at three depths — the footer's backdrop (pure SVG, no photography). */
 function CartonField() {
@@ -46,7 +47,7 @@ function CartonField() {
   );
 }
 
-export function Footer({ locale, contact }: { locale: Locale; contact: { phone: string; email: string; address: string } }) {
+export function Footer({ locale, info }: { locale: Locale; info: SiteInfo }) {
   const t = getDict(locale);
   const b = `/${locale}`;
   const year = new Date().getFullYear();
@@ -102,16 +103,39 @@ export function Footer({ locale, contact }: { locale: Locale; contact: { phone: 
             </ul>
             <div className="space-y-4 text-xs">
               <p className="eyebrow text-[11px] font-medium text-cream/50">{t.pages.contactInfo}</p>
-              {[contact.phone, contact.email, contact.address].map((v, i) =>
-                v ? (
-                  <p key={i} className={i < 2 ? "num font-medium text-cream" : "font-medium text-cream"}>
-                    {v}
-                  </p>
-                ) : (
-                  <p key={i} className="text-cream/35 italic">
-                    {t.common.placeholderNotice}
-                  </p>
-                ),
+              {[info.phone, info.phone2].map((ph) =>
+                ph && telUrl(ph) ? (
+                  <a key={ph} href={telUrl(ph)!} dir="ltr" className="num block font-medium text-cream hover:text-ember">
+                    {ph}
+                  </a>
+                ) : null,
+              )}
+              {info.whatsapp && whatsappUrl(info.whatsapp) && (
+                <a href={whatsappUrl(info.whatsapp)!} target="_blank" rel="noopener noreferrer" className="block font-medium text-cream hover:text-ember">
+                  WhatsApp · <span className="num" dir="ltr">{info.whatsapp}</span>
+                </a>
+              )}
+              {[info.email, info.email2].map((em) =>
+                em ? (
+                  <a key={em} href={`mailto:${em}`} dir="ltr" className="num block font-medium text-cream hover:text-ember">
+                    {em}
+                  </a>
+                ) : null,
+              )}
+              {info.address && <p className="font-medium text-cream">{info.address}</p>}
+              {!info.phone && !info.whatsapp && !info.email && !info.address && (
+                <Link href={`${b}/contact`} className="font-medium text-cream underline-offset-4 hover:underline">
+                  {t.pages.contactForm}
+                </Link>
+              )}
+              {info.social.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {info.social.map((s) => (
+                    <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-cream/25 px-3 py-1 text-[11px] text-cream/80 hover:border-ember hover:text-cream">
+                      {s.label}
+                    </a>
+                  ))}
+                </div>
               )}
             </div>
             <p className="text-[11px] leading-relaxed text-cream/50 md:text-end">{t.story.disclaimer}</p>

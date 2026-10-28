@@ -11,7 +11,7 @@ const createSchema = z.object({
   password: z.string().min(10).max(200),
   role,
 });
-const patchSchema = z.object({ id: z.string().max(40), role: role.optional(), isActive: z.boolean().optional() });
+const patchSchema = z.object({ id: z.string().max(40), role: role.optional(), isActive: z.boolean().optional(), password: z.string().min(10).max(200).optional() });
 
 export const POST = api(async (req) => {
   const actor = await requirePermission("user.manage");
@@ -27,10 +27,10 @@ export const PATCH = api(async (req) => {
   const b = await parseJson(req, patchSchema);
   if (b.id === actor.id && (b.isActive === false || (b.role && b.role !== "SUPER_ADMIN"))) throw new HttpError(409, "cannot_demote_self");
   await db.$transaction(async (tx) => {
-    await tx.user.update({ where: { id: b.id }, data: { role: b.role, isActive: b.isActive } });
-    // Role or activation changes revoke existing sessions
+    await tx.user.update({ where: { id: b.id }, data: { role: b.role, isActive: b.isActive, ...(b.password && { passwordHash: await hashPassword(b.password) }) } });
+    // Role, activation or password changes revoke existing sessions
     await tx.session.deleteMany({ where: { userId: b.id } });
-    await audit({ actorId: actor.id, action: "user.update", entity: "user", entityId: b.id, meta: { role: b.role ?? null, isActive: b.isActive ?? null }, ip: clientIp(req) }, tx);
+    await audit({ actorId: actor.id, action: "user.update", entity: "user", entityId: b.id, meta: { role: b.role ?? null, isActive: b.isActive ?? null, passwordReset: !!b.password }, ip: clientIp(req) }, tx);
   });
   return ok({ ok: true });
 });

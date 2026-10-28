@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getDict } from "@/i18n/dictionaries";
+import { getContent } from "@/lib/content";
 import type { Locale } from "@/i18n/config";
 import { TextPage } from "@/components/site/TextPage";
 
@@ -28,5 +29,7 @@ The customer confirms they hold the rights to use any logos and trademarks they 
 export default async function TermsPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   const t = getDict(locale);
-  return <TextPage locale={locale} title={t.pages.termsTitle} crumb={t.pages.termsTitle} body={BODY[locale]} notice={t.pages.legalDraft} />;
+  // approved text from Admin → Website content ("terms.body") replaces the built-in draft and its review notice
+  const approved = (await getContent(locale))("terms.body").trim();
+  return <TextPage locale={locale} title={t.pages.termsTitle} crumb={t.pages.termsTitle} body={approved || BODY[locale]} notice={approved ? undefined : t.pages.legalDraft} />;
 }

@@ -6,9 +6,12 @@ import { dirOf, isLocale, LOCALES, type Locale } from "@/i18n/config";
 import { I18nProvider } from "@/i18n/client";
 import { getDict } from "@/i18n/dictionaries";
 import { getCurrentUser, userIsStaff } from "@/lib/auth";
-import { getContent, siteUrl } from "@/lib/content";
+import { getSiteInfo, siteUrl } from "@/lib/content";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
+import { FooterGate } from "@/components/site/FooterGate";
+import { WhatsAppFab } from "@/components/site/WhatsAppFab";
+import { whatsappUrl } from "@/lib/site-settings";
 
 // Only /ar and /en exist; anything else (e.g. /favicon.ico) is a 404
 export const dynamicParams = false;
@@ -48,7 +51,7 @@ export const viewport: Viewport = { themeColor: "#100904", width: "device-width"
 export default async function LocaleLayout({ children, params }: { children: React.ReactNode; params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
-  const [user, content] = await Promise.all([getCurrentUser(), getContent(locale)]);
+  const [user, info] = await Promise.all([getCurrentUser(), getSiteInfo(locale)]);
 
   return (
     <html lang={locale} dir={dirOf(locale)} className={fontVariables}>
@@ -56,7 +59,10 @@ export default async function LocaleLayout({ children, params }: { children: Rea
         <I18nProvider locale={locale}>
           <Header user={user ? { name: user.name, isStaff: userIsStaff(user) } : null} />
           <main id="main">{children}</main>
-          <Footer locale={locale} contact={{ phone: content("contact.phone"), email: content("contact.email"), address: content("contact.address") }} />
+          <FooterGate>
+            <Footer locale={locale} info={info} />
+          </FooterGate>
+          <WhatsAppFab href={info.whatsapp ? whatsappUrl(info.whatsapp) : null} />
         </I18nProvider>
       </body>
     </html>

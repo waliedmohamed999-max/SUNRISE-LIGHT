@@ -9,8 +9,11 @@ export const metadata: Metadata = { robots: { index: false } };
 export default async function RegisterPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   const t = getDict(locale);
+  const points = locale === "ar"
+    ? ["صمّم علبتك بالمقاسات الدقيقة بالمليمتر", "عاين التصميم ثلاثي الأبعاد قبل التصنيع", "احفظ تصاميمك واطلب عرض سعر من المصنع"]
+    : ["Design your box to exact millimetre dimensions", "Preview it in 3D before manufacturing", "Save designs and request a factory quotation"];
   return (
-    <AuthShell title={t.auth.registerTitle} aside={t.home.studioBody}>
+    <AuthShell locale={locale} title={t.auth.registerTitle} subtitle={locale === "ar" ? "حساب مجاني لحفظ تصاميمك ورفع شعاراتك وطلب عروض الأسعار." : "A free account to save designs, upload logos and request quotations."} aside={t.brand.tagline} points={points}>
       <AuthForm mode="register" />
     </AuthShell>
   );

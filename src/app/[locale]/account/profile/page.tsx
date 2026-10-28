@@ -4,6 +4,7 @@ import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
 import { Card } from "@/components/ui";
 import { ProfileForm } from "@/components/site/AccountActions";
+import { PasswordForm } from "@/components/site/PasswordForm";
 
 export default async function ProfilePage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
@@ -27,6 +28,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
             vatNumber: profile?.company?.vatNumber ?? "",
           }}
         />
+      </Card>
+      <h2 className="mt-10 mb-4 text-lg font-bold text-navy">{locale === "ar" ? "كلمة المرور" : "Password"}</h2>
+      <Card className="p-6 sm:p-8">
+        <PasswordForm />
       </Card>
     </section>
   );

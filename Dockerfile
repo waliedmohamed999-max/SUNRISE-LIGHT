@@ -33,5 +33,6 @@ RUN mkdir -p /opt/prisma-cli && cd /opt/prisma-cli && npm init -y >/dev/null \
 RUN mkdir -p /app/storage && chown -R app:app /app/storage
 USER app
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
 # Apply pending migrations, then start
 CMD ["sh", "-c", "node /opt/prisma-cli/node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma && node server.js"]

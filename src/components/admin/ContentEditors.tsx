@@ -27,15 +27,18 @@ const KEY_LABELS: Record<string, string> = {
   "contact.hours": "Working hours / ساعات العمل",
   "about.body": "About page / صفحة عن المصنع",
   "services.body": "Services page / صفحة الخدمات",
+  "privacy.body": "Privacy policy (approved text) / سياسة الخصوصية (النص المعتمد)",
+  "terms.body": "Terms & conditions (approved text) / الشروط والأحكام (النص المعتمد)",
 };
 
 export function ContentEditor({ entries }: { entries: { key: string; valueAr: string; valueEn: string }[] }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [rows, setRows] = useState(entries);
   const { state, save } = useSave();
   return (
     <Card className="space-y-4 p-6">
       <h2 className="font-semibold text-navy">{t.admin.content}</h2>
+      <p className="text-xs text-ink-500">{locale === "ar" ? "اترك صفحتي الخصوصية والشروط فارغتين لعرض المسودة الافتراضية مع تنبيه المراجعة؛ بمجرد لصق النص المعتمد قانونيًا يختفي التنبيه." : "Leave privacy and terms empty to show the built-in draft with its review notice; once you paste the legally approved text the notice disappears."}</p>
       {rows.map((r, i) => {
         const long = r.key.endsWith(".body");
         const Input = long ? "textarea" : "input";
@@ -43,10 +46,10 @@ export function ContentEditor({ entries }: { entries: { key: string; valueAr: st
           <div key={r.key} className="grid gap-3 border-b border-navy/6 pb-4 md:grid-cols-[200px_1fr_1fr]">
             <p className="pt-2 text-sm font-medium text-navy">{KEY_LABELS[r.key] ?? r.key}</p>
             <Field label={t.admin.valueAr}>
-              <Input rows={long ? 4 : undefined} dir="rtl" className={inputClass} value={r.valueAr} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setRows(rows.map((x, j) => (j === i ? { ...x, valueAr: e.target.value } : x)))} />
+              <Input rows={long ? 6 : undefined} dir="rtl" className={inputClass} value={r.valueAr} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setRows(rows.map((x, j) => (j === i ? { ...x, valueAr: e.target.value } : x)))} />
             </Field>
             <Field label={t.admin.valueEn}>
-              <Input rows={long ? 4 : undefined} dir="ltr" className={inputClass} value={r.valueEn} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setRows(rows.map((x, j) => (j === i ? { ...x, valueEn: e.target.value } : x)))} />
+              <Input rows={long ? 6 : undefined} dir="ltr" className={inputClass} value={r.valueEn} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setRows(rows.map((x, j) => (j === i ? { ...x, valueEn: e.target.value } : x)))} />
             </Field>
           </div>
         );

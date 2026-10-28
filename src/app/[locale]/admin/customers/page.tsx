@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
-import { buttonClass, EmptyState, inputClass } from "@/components/ui";
+import { buttonClass, DownloadIcon, EmptyState, inputClass } from "@/components/ui";
 import { fmtDate } from "@/components/site/StatusBadge";
 
 export default async function AdminCustomers({ params, searchParams }: { params: Promise<{ locale: Locale }>; searchParams: Promise<{ q?: string }> }) {
@@ -30,7 +30,12 @@ export default async function AdminCustomers({ params, searchParams }: { params:
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-navy">{t.admin.customers}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-navy">{t.admin.customers}</h1>
+        <a href={`/api/admin/customers/export${q ? `?q=${encodeURIComponent(q)}` : ""}`} className={buttonClass("outline", "sm")}>
+          <DownloadIcon className="size-4" /> {locale === "ar" ? "تصدير CSV" : "Export CSV"}
+        </a>
+      </div>
       <form className="flex gap-2">
         <input name="q" defaultValue={q} placeholder={t.common.search} className={`${inputClass} max-w-md`} />
         <button className={buttonClass("primary", "md")}>{t.common.search}</button>

@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { Prisma, QuotationStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { rfqWhere, RFQ_STATUSES } from "@/lib/admin-filters";
 import { getCurrentUser } from "@/lib/auth";
 import { can, STAFF_ROLES } from "@/lib/rbac";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
-import { buttonClass, EmptyState, inputClass } from "@/components/ui";
+import { buttonClass, DownloadIcon, EmptyState, inputClass } from "@/components/ui";
 import { fmtDate, StatusBadge } from "@/components/site/StatusBadge";
 
-const STATUSES: QuotationStatus[] = ["NEW", "TECHNICAL_REVIEW", "PRICING", "QUOTE_SENT", "REVISION_REQUESTED", "APPROVED", "REJECTED", "CANCELLED"];
+const STATUSES = RFQ_STATUSES;
 
 export default async function AdminQuotes({ params, searchParams }: { params: Promise<{ locale: Locale }>; searchParams: Promise<{ q?: string; status?: string; assignee?: string; mine?: string; page?: string }> }) {
   const { locale } = await params;
@@ -18,23 +18,8 @@ export default async function AdminQuotes({ params, searchParams }: { params: Pr
   if (!can(user.role, "rfq.view")) notFound();
   const t = getDict(locale);
 
-  const status = STATUSES.includes(sp.status as QuotationStatus) ? (sp.status as QuotationStatus) : undefined;
-  const q = sp.q?.trim().slice(0, 100);
+  const { where, status, q } = rfqWhere(sp, user.id);
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
-  const where: Prisma.QuotationRequestWhereInput = {
-    ...(status && { status }),
-    ...(sp.mine && { assignedToId: user.id }),
-    ...(sp.assignee === "none" ? { assignedToId: null } : sp.assignee ? { assignedToId: sp.assignee } : {}),
-    ...(q && {
-      OR: [
-        { rfqNumber: { contains: q, mode: "insensitive" } },
-        { contactName: { contains: q, mode: "insensitive" } },
-        { companyName: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q } },
-      ],
-    }),
-  };
   const PAGE = 30;
   const [rows, total, staff] = await Promise.all([
     db.quotationRequest.findMany({
@@ -54,10 +39,20 @@ export default async function AdminQuotes({ params, searchParams }: { params: Pr
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-navy">{t.admin.quotes}</h1>
-      <form className="flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-navy/8 bg-white p-3">
-        <input name="q" defaultValue={q} placeholder={`${t.common.search}: RFQ, ${t.admin.customer}, email…`} className={`${inputClass} min-w-56 flex-1`} />
-        <select name="status" defaultValue={status ?? ""} className={`${inputClass} w-auto`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-navy">{t.admin.quotes}</h1>
+          <p className="num mt-1 text-xs text-ink-500">
+            {total} {locale === "ar" ? "طلب" : "requests"}
+          </p>
+        </div>
+        <a href={`/api/admin/rfq/export?${new URLSearchParams(Object.entries({ q: sp.q, status: sp.status, assignee: sp.assignee, mine: sp.mine }).filter(([, v]) => v) as [string, string][])}`} className={buttonClass("outline", "sm")}>
+          <DownloadIcon className="size-4" /> {locale === "ar" ? "تصدير CSV" : "Export CSV"}
+        </a>
+      </div>
+      <form className="grid gap-2 rounded-[var(--radius-card)] border border-navy/8 bg-white p-3 md:grid-cols-[minmax(0,1fr)_12rem_12rem_auto] md:items-center">
+        <input name="q" defaultValue={q} placeholder={`${t.common.search}: RFQ, ${t.admin.customer}, email…`} className={inputClass} />
+        <select name="status" defaultValue={status ?? ""} className={inputClass}>
           <option value="">{t.common.all}</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -65,7 +60,7 @@ export default async function AdminQuotes({ params, searchParams }: { params: Pr
             </option>
           ))}
         </select>
-        <select name="assignee" defaultValue={sp.assignee ?? ""} className={`${inputClass} w-auto`}>
+        <select name="assignee" defaultValue={sp.assignee ?? ""} className={inputClass}>
           <option value="">{t.admin.assignee}: {t.common.all}</option>
           <option value="none">{t.admin.unassigned}</option>
           {staff.map((s) => (

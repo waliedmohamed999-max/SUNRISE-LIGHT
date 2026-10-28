@@ -15,8 +15,8 @@ export function Header({ user }: { user: { name: string; isStaff: boolean } | nu
   const base = `/${locale}`;
   // On the homepage the header floats transparently over the 3D film
   const isHome = pathname === base;
-  // the design studio is a white workspace
-  const isStudio = pathname.startsWith(`${base}/studio`);
+  // the design studio, the factory dashboard and the sign-in pages are white workspaces
+  const isStudio = ["studio", "admin", "login", "register"].some((p) => pathname.startsWith(`${base}/${p}`));
 
   useEffect(() => setOpen(false), [pathname]);
 

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { db } from "@/lib/db";
-import { getContent } from "@/lib/content";
+import { getSiteInfo } from "@/lib/content";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
 import { Logo } from "@/components/site/Logo";
@@ -28,7 +28,7 @@ export default async function QuotationDocumentPage({ params }: { params: Promis
   });
   const staff = can(user.role, "rfq.view");
   if (!offer || (!staff && (offer.request.customerId !== user.id || !offer.sentAt))) notFound();
-  const content = await getContent(locale);
+  const info = await getSiteInfo(locale);
   const r = offer.request;
   const doc = offer.documents[0];
   const ar = locale === "ar";
@@ -112,7 +112,12 @@ export default async function QuotationDocumentPage({ params }: { params: Promis
         )}
 
         <footer className="mt-10 border-t border-navy/10 pt-4 text-xs text-ink-500">
-          <p>{t.brand.name} · {[content("contact.phone"), content("contact.email"), content("contact.address")].filter(Boolean).join(" · ") || t.common.placeholderNotice}</p>
+          <p>{[t.brand.name, info.phone, info.phone2, info.email2 || info.email, info.address].filter(Boolean).join(" · ")}</p>
+          {(info.cr || info.vat) && (
+            <p className="num mt-1">
+              {[info.cr && `${locale === "ar" ? "س.ت" : "CR"} ${info.cr}`, info.vat && `${locale === "ar" ? "الرقم الضريبي" : "VAT"} ${info.vat}`].filter(Boolean).join(" · ")}
+            </p>
+          )}
           <p className="mt-1">{t.studio.colorNote}</p>
         </footer>
       </article>

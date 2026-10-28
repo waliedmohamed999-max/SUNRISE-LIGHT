@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";
-import { Alert, Button, Field, inputClass, Spinner } from "@/components/ui";
+import { Alert, Button, EyeIcon, Field, inputClass, Spinner } from "@/components/ui";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { t, locale } = useI18n();
@@ -15,6 +15,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -75,14 +76,25 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <input name="email" type="email" required dir="ltr" autoComplete="email" className={inputClass} />
       </Field>
       <Field label={t.auth.password} hint={mode === "register" ? t.auth.passwordHint : undefined}>
-        <input name="password" type="password" required minLength={mode === "register" ? 8 : 1} dir="ltr" autoComplete={mode === "register" ? "new-password" : "current-password"} className={inputClass} />
+        <div className="relative">
+          <input name="password" type={showPassword ? "text" : "password"} required minLength={mode === "register" ? 8 : 1} dir="ltr" autoComplete={mode === "register" ? "new-password" : "current-password"} className={`${inputClass} pe-11`} />
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            aria-pressed={showPassword}
+            aria-label={showPassword ? (locale === "ar" ? "إخفاء كلمة المرور" : "Hide password") : locale === "ar" ? "إظهار كلمة المرور" : "Show password"}
+            className={`absolute inset-y-0 end-0 grid w-11 place-items-center ${showPassword ? "text-sun" : "text-ink-500 hover:text-navy"}`}
+          >
+            <EyeIcon className="size-4" />
+          </button>
+        </div>
       </Field>
       {error && <Alert tone="danger">{error}</Alert>}
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" size="lg" className="mt-2 w-full" disabled={pending}>
         {pending && <Spinner />}
         {mode === "login" ? t.auth.submitLogin : t.auth.submitRegister}
       </Button>
-      <p className="text-center text-sm text-ink-500">
+      <p className="border-t border-navy/8 pt-5 text-center text-sm text-ink-500">
         {mode === "login" ? t.auth.noAccount : t.auth.haveAccount}{" "}
         <Link href={`/${locale}/${mode === "login" ? "register" : "login"}${q}`} className="font-semibold text-navy underline-offset-4 hover:underline">
           {mode === "login" ? t.nav.register : t.nav.login}

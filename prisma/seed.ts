@@ -294,20 +294,26 @@ const FAQ = [
 ];
 
 const CONTENT: { key: string; valueAr: string; valueEn: string }[] = [
-  { key: "contact.phone", valueAr: "", valueEn: "" },
-  { key: "contact.email", valueAr: "", valueEn: "" },
+  // from the official company profile (contact page)
+  { key: "contact.phone", valueAr: "+966 50 666 5098", valueEn: "+966 50 666 5098" },
+  { key: "contact.phone2", valueAr: "+966 54 407 1540", valueEn: "+966 54 407 1540" },
+  { key: "contact.email", valueAr: "info@sunriselight.sa", valueEn: "info@sunriselight.sa" },
+  { key: "contact.email2", valueAr: "sales@sunriselight.sa", valueEn: "sales@sunriselight.sa" },
   { key: "contact.whatsapp", valueAr: "", valueEn: "" },
-  { key: "contact.address", valueAr: "", valueEn: "" },
+  { key: "contact.address", valueAr: "الرياض – المعيقلية الرابعة – الدور الثالث – مكتب 315 د", valueEn: "Riyadh – Al-Moaqelia Fourth – 3rd floor – Office 315 D" },
+  { key: "contact.map", valueAr: "https://maps.app.goo.gl/ky49uv4T2iLber96A", valueEn: "https://maps.app.goo.gl/ky49uv4T2iLber96A" },
   { key: "contact.hours", valueAr: "", valueEn: "" },
   {
     key: "about.body",
-    valueAr: "مصنع ضوء الشروق متخصص في تصنيع وطباعة العبوات الكرتونية والورقية حسب الطلب، ويقدّم لعملائه منصة رقمية لتصميم العبوة ومعاينتها قبل التصنيع.",
-    valueEn: "Sunrise Light manufactures and prints custom cardboard and paper packaging, and offers customers a digital platform to design and preview their packaging before manufacturing.",
+    valueAr:
+      "مصنع ضوء الشروق للكرتون والتغليف — فريق كامل يعمل من أجل خدمتكم.\n\nنصنع ونطبع العبوات الكرتونية والورقية حسب الطلب: كرتون الإنفركوت والمضلّع والكرافت والدمج والهارد كفر، والأكياس الكرافت والإنفركوت، والاستيكر رول والشيت، وورق اللف.\n\nومن خلال منصتنا الرقمية يصمّم عملاؤنا عبواتهم بأنفسهم ويعاينونها قبل التصنيع، ثم يراجع فريقنا كل طلب ويرسل عرض السعر.",
+    valueEn:
+      "Sunrise Light Packaging Factory — a complete team working to serve you.\n\nWe manufacture and print custom cardboard and paper packaging: Invercote, corrugated, kraft, merge and hard-cover boxes; kraft and Invercote bags; sticker rolls and sheets; and wrapping paper.\n\nThrough our digital platform customers design and preview their packaging before production; our team then reviews every request and sends the quotation.",
   },
   {
     key: "services.body",
-    valueAr: "تصنيع الكراتين المموجة، علب المنتجات، صناديق التجارة الإلكترونية، والطباعة على العبوات. تُحدّث تفاصيل الخدمات من لوحة الإدارة.",
-    valueEn: "Corrugated cartons, product cartons, e-commerce mailers and packaging printing. Service details are maintained from the admin dashboard.",
+    valueAr: "نصنع ونطبع العبوات حسب الطلب بشعارك وتصميمك: علب وكراتين بأنواعها، أكياس ورقية، استيكرات، وورق لف. صمّم عبوتك في الاستوديو أو تواصل معنا مباشرة لطلب عرض سعر.",
+    valueEn: "We manufacture and print packaging to order with your logo and design: boxes and cartons of every kind, paper bags, stickers and wrapping paper. Design your box in the studio or contact us directly for a quotation.",
   },
 ];
 
