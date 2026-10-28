@@ -1,26 +1,189 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Sunrise Light — "darkroom product editorial" theme.
+ * Warm near-black canvas, cream typography, a single product in the light.
+ *
+ * Token names are ROLES used across the codebase, not literal colours:
+ *   paper   = page canvas          white  = elevated surface (cards, inputs)
+ *   navy    = primary foreground   ink    = body text
+ *   sun     = ember accent         kraft / gold = warm secondary accents
+ * The light print palette is restored inside `.theme-paper` (quotation documents, print).
+ */
+@theme {
+  /* Editorial palette (use directly in new code) */
+  --color-walnut: #100904;
+  --color-bark: #382416;
+  --color-cork: #40372e;
+  --color-driftwood: #6c5f51;
+  --color-cream: #ffedd7;
+  --color-ember: #dc5000;
+  --color-mat: #445231;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Roles */
+  --color-paper: #100904;
+  --color-paper-200: #1a110a;
+  --color-paper-300: #251810;
+  --color-white: #1d130b;
+  --color-navy: #ffedd7;
+  --color-navy-950: #0a0603;
+  --color-navy-900: #160d06;
+  --color-navy-700: #f3dcc0;
+  --color-navy-500: #b8a48d;
+  --color-navy-300: #6c5f51;
+  --color-navy-100: #2a1d12;
+  --color-ink: #ffedd7;
+  --color-ink-500: #b3a08a;
+  --color-sun: #dc5000;
+  --color-sun-600: #ff7a33;
+  --color-sun-100: #2a1409;
+  --color-gold: #e9b98a;
+  --color-kraft: #c79a6b;
+  --color-kraft-200: #3a2a1c;
+  --color-ok: #7fcf9b;
+  --color-warn: #f0b860;
+  --color-danger: #ff7b6b;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --font-sans: var(--font-inter), var(--font-plex-arabic), system-ui, sans-serif;
+  --font-latin: var(--font-inter), var(--font-plex-arabic), system-ui, sans-serif;
+  /* headline face: Latin glyphs from Hanken Grotesk, Arabic glyphs fall through to Alexandria */
+  --font-display: var(--font-hanken), var(--font-alexandria), system-ui, sans-serif;
+  --font-serif: var(--font-literata), Georgia, serif;
+
+  --radius-card: 12px;
+  /* No drop shadows in this style: depth comes from surface steps and hairlines */
+  --shadow-card: 0 0 0 1px rgb(255 237 215 / 0.07);
+  --shadow-lift: 0 0 0 1px #40372e;
+
+  --animate-rise: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
+/* Light print palette (quotation documents and printing) */
+.theme-paper {
+  --color-paper: #f8f6f2;
+  --color-paper-200: #efebe3;
+  --color-paper-300: #e4ded2;
+  --color-white: #ffffff;
+  --color-navy: #14283f;
+  --color-navy-700: #23405f;
+  --color-navy-500: #4a6584;
+  --color-navy-300: #9fb0c3;
+  --color-navy-100: #e3e9f0;
+  --color-ink: #1d2935;
+  --color-ink-500: #5b6773;
+  --color-sun: #f5a623;
+  --color-sun-600: #e08e0b;
+  --color-sun-100: #fdf0d9;
+  --color-gold: #d69a38;
+  --color-kraft: #b78b59;
+  --color-ok: #2f855a;
+  --color-warn: #b7791f;
+  --color-danger: #c53030;
+  color: var(--color-ink);
+  background: var(--color-paper);
+}
+
+html:lang(ar) body {
+  font-family: var(--font-plex-arabic), var(--font-inter), system-ui, sans-serif;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-walnut);
+  color: var(--color-cream);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Editorial voice: Latin headings, navigation and controls are uppercase at weight 500 */
+html:lang(en) :is(h1, h2, h3, nav a, button, .btn, .eyebrow) {
+  text-transform: uppercase;
+}
+:is(h1, h2, h3),
+.display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: normal;
+}
+/* Arabic display reads better slightly lighter and with a touch more leading */
+html:lang(ar) :is(h1, h2, h3, .display) {
+  font-weight: 500;
+  line-height: 1.08;
+}
+.serif {
+  font-family: var(--font-serif);
+  font-weight: 300;
+}
+
+::selection {
+  background: var(--color-ember);
+  color: var(--color-cream);
+}
+
+:focus-visible {
+  outline: 1px dashed var(--color-cream);
+  outline-offset: 3px;
+}
+
+/* Hairline dashed dividers */
+.rule {
+  border-top: 1px dashed var(--color-cork);
+}
+.rule-cream {
+  border-top: 1px dashed rgb(255 237 215 / 0.35);
+}
+
+/* Faint grid used behind editors and empty canvases */
+.bg-grid,
+.bg-grid-dark {
+  background-image:
+    linear-gradient(to right, rgb(255 237 215 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 237 215 / 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Numbers and measurements always read left-to-right */
+.num {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-latin);
+}
+
+/* Form controls follow the dark surface */
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+.theme-paper :is(input, select, textarea) {
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #1d2935;
+  }
 }

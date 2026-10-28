@@ -1,0 +1,6 @@
+# Store text with LF in the repository; Windows checkouts may convert locally
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.svg text eol=lf

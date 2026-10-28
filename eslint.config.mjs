@@ -12,9 +12,17 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    rules: {
+      // `_`-prefixed bindings are intentional discards (e.g. omitting a key when destructuring)
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", ignoreRestSiblings: true }],
+    },
+  },
+  {
     ignores: [
       "node_modules/**",
       ".next/**",
+      ".next-*/**",
+      "storage/**",
       "out/**",
       "build/**",
       "next-env.d.ts",

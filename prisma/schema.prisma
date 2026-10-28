@@ -1,0 +1,557 @@
+// Sunrise Light — مصنع ضوء الشروق
+// PostgreSQL schema. Internal unit for every dimension is millimetres (mm).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Identity & access ─────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  FACTORY_MANAGER
+  SALES
+  TECH_REVIEWER
+  CUSTOMER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         Role     @default(CUSTOMER)
+  locale       String   @default("ar")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions          Session[]
+  profile           CustomerProfile?
+  designs           DesignProject[]
+  assets            UploadedAsset[]
+  quotationRequests QuotationRequest[]     @relation("RfqCustomer")
+  assignedRequests  QuotationRequest[]     @relation("RfqAssignee")
+  statusChanges     QuotationStatusHistory[]
+  notes             QuotationNote[]
+  offers            QuotationOffer[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Company {
+  id        String            @id @default(cuid())
+  name      String
+  crNumber  String?
+  vatNumber String?
+  createdAt DateTime          @default(now())
+  profiles  CustomerProfile[]
+
+  @@map("companies")
+}
+
+model CustomerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  companyId String?
+  city      String?
+  address   String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  @@map("customer_profiles")
+}
+
+// ───────────────────────────── Catalogue ─────────────────────────────
+
+enum CategoryStatus {
+  ACTIVE
+  COMING_SOON
+  HIDDEN
+}
+
+model PackagingCategory {
+  id            String              @id @default(cuid())
+  slug          String              @unique
+  nameAr        String
+  nameEn        String
+  descriptionAr String              @default("")
+  descriptionEn String              @default("")
+  status        CategoryStatus      @default(COMING_SOON)
+  sortOrder     Int                 @default(0)
+  templates     PackagingTemplate[]
+
+  @@map("packaging_categories")
+}
+
+model PackagingTemplate {
+  id               String                 @id @default(cuid())
+  /// Stable public identifier, e.g. "shipping-carton"
+  code             String                 @unique
+  /// Key of the parametric geometry engine implemented in code (src/packaging/templates)
+  engineKey        String
+  categoryId       String
+  nameAr           String
+  nameEn           String
+  descriptionAr    String                 @default("")
+  descriptionEn    String                 @default("")
+  isEnabled        Boolean                @default(true)
+  currentVersionId String?                @unique
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  category       PackagingCategory      @relation(fields: [categoryId], references: [id])
+  currentVersion TemplateVersion?       @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  versions       TemplateVersion[]      @relation("TemplateVersions")
+  materialRules  TemplateMaterialRule[]
+  designs        DesignProject[]
+
+  @@index([categoryId])
+  @@map("packaging_templates")
+}
+
+model TemplateVersion {
+  id               String   @id @default(cuid())
+  templateId       String
+  version          Int
+  minLengthMm      Int
+  maxLengthMm      Int
+  minWidthMm       Int
+  maxWidthMm       Int
+  minHeightMm      Int
+  maxHeightMm      Int
+  defaultLengthMm  Int
+  defaultWidthMm   Int
+  defaultHeightMm  Int
+  safeMarginMm     Int      @default(5)
+  /// true only after the factory engineering team validates the generated dieline
+  dielineValidated Boolean  @default(false)
+  /// Extra manufacturing constraints (JSON, e.g. {"maxLengthToHeightRatio": 6})
+  constraints      Json     @default("{}")
+  printOptions     Json     @default("[]")
+  createdAt        DateTime @default(now())
+
+  template         PackagingTemplate  @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Cascade)
+  currentOf        PackagingTemplate? @relation("CurrentVersion")
+  panels           TemplatePanel[]
+  designs          DesignProject[]
+
+  @@unique([templateId, version])
+  @@map("template_versions")
+}
+
+model TemplatePanel {
+  id                String          @id @default(cuid())
+  templateVersionId String
+  key               String
+  nameAr            String
+  nameEn            String
+  printable         Boolean         @default(true)
+  templateVersion   TemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([templateVersionId, key])
+  @@map("template_panels")
+}
+
+enum MaterialKind {
+  KRAFT
+  WHITE
+  CORRUGATED
+  DUPLEX
+  OTHER
+}
+
+model MaterialType {
+  id             String                 @id @default(cuid())
+  code           String                 @unique
+  nameAr         String
+  nameEn         String
+  kind           MaterialKind
+  /// Thickness / flute description as provided by the factory
+  thickness      String                 @default("")
+  colorHex       String                 @default("#C9A06B")
+  printableSides String                 @default("outside")
+  limitationsAr  String                 @default("")
+  limitationsEn  String                 @default("")
+  isAvailable    Boolean                @default(true)
+  /// false = sample/illustrative entry that the factory has not yet confirmed
+  factoryApproved Boolean               @default(false)
+  sortOrder      Int                    @default(0)
+  templateRules  TemplateMaterialRule[]
+  finishings     MaterialFinishing[]
+  quotationItems QuotationItem[]
+
+  @@map("material_types")
+}
+
+model TemplateMaterialRule {
+  templateId String
+  materialId String
+  template   PackagingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  material   MaterialType      @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@id([templateId, materialId])
+  @@map("template_material_rules")
+}
+
+model FinishingOption {
+  id          String              @id @default(cuid())
+  code        String              @unique
+  nameAr      String
+  nameEn      String
+  isAvailable Boolean             @default(true)
+  sortOrder   Int                 @default(0)
+  materials   MaterialFinishing[]
+
+  @@map("finishing_options")
+}
+
+model MaterialFinishing {
+  materialId  String
+  finishingId String
+  material    MaterialType    @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  finishing   FinishingOption @relation(fields: [finishingId], references: [id], onDelete: Cascade)
+
+  @@id([materialId, finishingId])
+  @@map("material_finishings")
+}
+
+// ───────────────────────────── Designs ─────────────────────────────
+
+enum DesignStatus {
+  DRAFT
+  SUBMITTED
+}
+
+model DesignProject {
+  id                String          @id @default(cuid())
+  ownerId           String
+  name              String
+  templateId        String
+  templateVersionId String
+  status            DesignStatus    @default(DRAFT)
+  /// Latest editable design document (see src/design/document.ts)
+  document          Json
+  thumbnailAssetId  String?
+  deletedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  owner           User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  template        PackagingTemplate  @relation(fields: [templateId], references: [id])
+  templateVersion TemplateVersion    @relation(fields: [templateVersionId], references: [id])
+  thumbnail       UploadedAsset?     @relation("DesignThumbnail", fields: [thumbnailAssetId], references: [id], onDelete: SetNull)
+  versions        DesignVersion[]
+  quotationItems  QuotationItem[]
+
+  @@index([ownerId, deletedAt, updatedAt])
+  @@map("design_projects")
+}
+
+/// Immutable snapshot of a design document (explicit saves and every RFQ submission).
+/// Individual design elements live inside the versioned JSON document so that a save is atomic.
+model DesignVersion {
+  id        String        @id @default(cuid())
+  projectId String
+  versionNo Int
+  document  Json
+  note      String?
+  createdAt DateTime      @default(now())
+  project   DesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  quotationItems QuotationItem[]
+
+  @@unique([projectId, versionNo])
+  @@map("design_versions")
+}
+
+enum AssetKind {
+  LOGO
+  PREVIEW
+  ATTACHMENT
+}
+
+model UploadedAsset {
+  id           String          @id @default(cuid())
+  ownerId      String
+  kind         AssetKind
+  mime         String
+  sizeBytes    Int
+  width        Int?
+  height       Int?
+  sha256       String
+  storageKey   String          @unique
+  originalName String
+  createdAt    DateTime        @default(now())
+  owner        User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  thumbnailOf  DesignProject[] @relation("DesignThumbnail")
+
+  @@index([ownerId, kind])
+  @@map("uploaded_assets")
+}
+
+// ───────────────────────────── Quotations ─────────────────────────────
+
+enum QuotationStatus {
+  NEW
+  TECHNICAL_REVIEW
+  PRICING
+  QUOTE_SENT
+  REVISION_REQUESTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model QuotationRequest {
+  id               String          @id @default(cuid())
+  rfqNumber        String          @unique
+  customerId       String
+  status           QuotationStatus @default(NEW)
+  assignedToId     String?
+  contactName      String
+  companyName      String?
+  phone            String
+  email            String
+  deliveryCity     String
+  deliveryLocation String
+  notes            String?
+  previewAssetId   String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  customer      User                     @relation("RfqCustomer", fields: [customerId], references: [id])
+  assignedTo    User?                    @relation("RfqAssignee", fields: [assignedToId], references: [id])
+  items         QuotationItem[]
+  statusHistory QuotationStatusHistory[]
+  quoteNotes    QuotationNote[]
+  offers        QuotationOffer[]
+  documents     QuotationDocument[]
+
+  @@index([status, createdAt])
+  @@index([customerId, createdAt])
+  @@index([assignedToId])
+  @@map("quotation_requests")
+}
+
+model QuotationItem {
+  id                   String           @id @default(cuid())
+  requestId            String
+  designProjectId      String
+  designVersionId      String
+  materialId           String?
+  quantity             Int
+  printingRequirements String           @default("")
+  finishingCodes       Json             @default("[]")
+  /// Frozen copy of template, dimensions and surfaces at submission time
+  specSnapshot         Json
+  request              QuotationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  designProject        DesignProject    @relation(fields: [designProjectId], references: [id])
+  designVersion        DesignVersion    @relation(fields: [designVersionId], references: [id])
+  material             MaterialType?    @relation(fields: [materialId], references: [id])
+
+  @@index([requestId])
+  @@map("quotation_items")
+}
+
+model QuotationStatusHistory {
+  id          String           @id @default(cuid())
+  requestId   String
+  fromStatus  QuotationStatus?
+  toStatus    QuotationStatus
+  changedById String?
+  note        String?
+  createdAt   DateTime         @default(now())
+  request     QuotationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  changedBy   User?            @relation(fields: [changedById], references: [id])
+
+  @@index([requestId, createdAt])
+  @@map("quotation_status_history")
+}
+
+model QuotationNote {
+  id        String           @id @default(cuid())
+  requestId String
+  authorId  String
+  body      String
+  /// false = technical feedback visible to the customer
+  internal  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  request   QuotationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author    User             @relation(fields: [authorId], references: [id])
+
+  @@index([requestId, createdAt])
+  @@map("quotation_notes")
+}
+
+model QuotationOffer {
+  id          String              @id @default(cuid())
+  requestId   String
+  currency    String              @default("SAR")
+  unitPrice   Decimal             @db.Decimal(12, 3)
+  quantity    Int
+  subtotal    Decimal             @db.Decimal(14, 2)
+  taxPercent  Decimal             @db.Decimal(5, 2) @default(0)
+  total       Decimal             @db.Decimal(14, 2)
+  validUntil  DateTime?
+  leadTime    String              @default("")
+  terms       String              @default("")
+  createdById String
+  sentAt      DateTime?
+  createdAt   DateTime            @default(now())
+  request     QuotationRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  createdBy   User                @relation(fields: [createdById], references: [id])
+  documents   QuotationDocument[]
+
+  @@index([requestId])
+  @@map("quotation_offers")
+}
+
+model QuotationDocument {
+  id        String           @id @default(cuid())
+  requestId String
+  offerId   String
+  docNumber String           @unique
+  createdAt DateTime         @default(now())
+  request   QuotationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  offer     QuotationOffer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@map("quotations_documents")
+}
+
+/// Future automatic pricing. Rules stay inactive until the factory validates them.
+model PricingRule {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  config    Json
+  isActive  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@map("pricing_rules")
+}
+
+model Counter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("counters")
+}
+
+// ───────────────────────────── Communication & content ─────────────────────────────
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String?
+  recipient String?
+  channel   NotificationChannel
+  type      String
+  title     String
+  body      String
+  link      String?
+  status    DeliveryStatus      @default(PENDING)
+  error     String?
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+  user      User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model WebsiteContent {
+  key       String   @id
+  valueAr   String   @default("")
+  valueEn   String   @default("")
+  updatedAt DateTime @updatedAt
+
+  @@map("website_content")
+}
+
+model FaqItem {
+  id         String  @id @default(cuid())
+  questionAr String
+  questionEn String
+  answerAr   String
+  answerEn   String
+  sortOrder  Int     @default(0)
+  published  Boolean @default(true)
+
+  @@map("faq_items")
+}
+
+model PortfolioItem {
+  id            String   @id @default(cuid())
+  titleAr       String
+  titleEn       String
+  descriptionAr String   @default("")
+  descriptionEn String   @default("")
+  imageUrl      String?
+  published     Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@map("portfolio_items")
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([handled, createdAt])
+  @@map("contact_messages")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json     @default("{}")
+  ip        String?
+  createdAt DateTime @default(now())
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
