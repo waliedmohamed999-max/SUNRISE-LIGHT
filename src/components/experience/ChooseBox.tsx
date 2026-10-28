@@ -5,14 +5,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { buttonClass, cx } from "@/components/ui";
-import { SHOWCASE_DIMS, showcaseCanvases } from "@/components/three/showcase";
+import { brandMarkReady, SHOWCASE_DIMS, showcaseCanvases } from "@/components/three/showcase";
 import type { SurfaceKey } from "@/packaging/types";
 
 const BoxViewer = dynamic(() => import("@/components/three/BoxViewer"), { ssr: false });
 
 export interface ChooseTemplate {
   code: string;
-  engineKey: "rsc" | "mailer" | "rte";
+  engineKey: "rsc" | "mailer" | "rte" | "pizza" | "bag" | "tray";
   name: string;
   description: string;
   limits: { minL: number; maxL: number; minW: number; maxW: number; minH: number; maxH: number };
@@ -21,7 +21,7 @@ export interface ChooseTemplate {
   validated: boolean;
 }
 
-const SHOWCASE_KIND = { rsc: "rsc", mailer: "mailer", rte: "rte" } as const;
+const SHOWCASE_KIND = { rsc: "rsc", mailer: "mailer", rte: "rte", pizza: "pizza", bag: "bag", tray: "tray" } as const;
 
 /** Template comparison: tabs + live 3D preview + spec table (data from the database). */
 export function ChooseBox({ templates }: { templates: ChooseTemplate[] }) {
@@ -33,7 +33,13 @@ export function ChooseBox({ templates }: { templates: ChooseTemplate[] }) {
   const kind = SHOWCASE_KIND[tpl.engineKey];
   const spec = SHOWCASE_DIMS[kind];
 
-  useEffect(() => setCanvases(showcaseCanvases(kind)), [kind]);
+  useEffect(() => {
+    let alive = true;
+    brandMarkReady().then(() => alive && setCanvases(showcaseCanvases(kind)));
+    return () => {
+      alive = false;
+    };
+  }, [kind]);
 
   const rows = useMemo(
     () => [
@@ -102,7 +108,7 @@ export function ChooseBox({ templates }: { templates: ChooseTemplate[] }) {
 
         {/* comparison table */}
         <div className="mx-auto mt-14 max-w-6xl overflow-x-auto pb-24">
-          <table className="w-full min-w-[720px] border-separate border-spacing-y-2 text-center">
+          <table className="w-full min-w-[1040px] border-separate border-spacing-y-2 text-center">
             <thead>
               <tr>
                 <th className="w-[18%]" />

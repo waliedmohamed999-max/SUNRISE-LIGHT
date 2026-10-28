@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { BoxModel } from "./BoxModel";
-import { cupCanvas, SHOWCASE_DIMS, showcaseCanvases, type ShowcaseKind } from "./showcase";
+import { brandMarkReady, cupCanvas, SHOWCASE_DIMS, showcaseCanvases, type ShowcaseKind } from "./showcase";
 import { hasWebGL } from "@/design/hooks";
 import { DarkroomLights } from "./Lights";
 
@@ -75,7 +75,9 @@ export default function ProductStage({ kind, className }: { kind: ShowcaseKind; 
   const [gl, setGl] = useState<boolean | null>(null);
   const [lidOpen, setLidOpen] = useState(false);
 
-  useEffect(() => setGl(hasWebGL()), []);
+  useEffect(() => {
+    brandMarkReady().then(() => setGl(hasWebGL()));
+  }, []);
   useEffect(() => {
     const el = host.current;
     if (!el) return;

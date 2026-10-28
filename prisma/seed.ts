@@ -33,6 +33,10 @@ const MATERIALS: { code: string; nameAr: string; nameEn: string; kind: MaterialK
   { code: "kraft-board", nameAr: "كرتون كرافت", nameEn: "Kraft board", kind: "KRAFT", colorHex: "#C49A68", sortOrder: 3 },
   { code: "white-board", nameAr: "كرتون أبيض", nameEn: "White board", kind: "WHITE", colorHex: "#F5F3EE", sortOrder: 4 },
   { code: "duplex-board", nameAr: "كرتون دوبلكس", nameEn: "Duplex board", kind: "DUPLEX", colorHex: "#ECE9E3", sortOrder: 5 },
+  { code: "micro-flute", nameAr: "كرتون مموج رقيق (موجة E)", nameEn: "Micro-flute corrugated (E-flute)", kind: "CORRUGATED", colorHex: "#C9A06B", sortOrder: 6 },
+  { code: "kraft-paper", nameAr: "ورق كرافت للأكياس", nameEn: "Kraft bag paper", kind: "KRAFT", colorHex: "#B98C5A", sortOrder: 7 },
+  { code: "white-kraft-paper", nameAr: "ورق كرافت أبيض", nameEn: "White kraft paper", kind: "WHITE", colorHex: "#F1ECE2", sortOrder: 8 },
+  { code: "rigid-board", nameAr: "كرتون مقوّى صلب (للعلب الفاخرة)", nameEn: "Rigid greyboard (luxury boxes)", kind: "OTHER", colorHex: "#2A221C", sortOrder: 9 },
 ];
 
 const FINISHINGS = [
@@ -42,7 +46,22 @@ const FINISHINGS = [
   { code: "matte-lamination", nameAr: "سلوفان مطفي", nameEn: "Matte lamination" },
   { code: "gloss-lamination", nameAr: "سلوفان لامع", nameEn: "Gloss lamination" },
   { code: "spot-uv", nameAr: "يو في موضعي", nameEn: "Spot UV" },
-  { code: "hot-foil", nameAr: "طباعة فويل", nameEn: "Hot foil stamping" },
+  { code: "hot-foil", nameAr: "بصمة فويل (ذهبي / فضي)", nameEn: "Hot foil stamping (gold / silver)" },
+  { code: "emboss", nameAr: "كفراج بارز", nameEn: "Embossing" },
+  { code: "deboss", nameAr: "كفراج غائر", nameEn: "Debossing" },
+  { code: "soft-touch", nameAr: "سلوفان ناعم الملمس", nameEn: "Soft-touch lamination" },
+  { code: "window-patch", nameAr: "شباك شفاف (PET)", nameEn: "Window patch (PET)" },
+  { code: "inside-print", nameAr: "طباعة داخلية", nameEn: "Inside print" },
+  { code: "paper-handles", nameAr: "مقابض ورقية مبرومة", nameEn: "Twisted paper handles" },
+  { code: "ribbon-handles", nameAr: "مقابض شريط قماش", nameEn: "Ribbon handles" },
+  { code: "inserts", nameAr: "حوامل وفواصل داخلية", nameEn: "Inserts & partitions" },
+  { code: "foam-insert", nameAr: "إسفنج داخلي مفصّل", nameEn: "Custom foam insert" },
+  { code: "satin-ribbon", nameAr: "شريطة ستان", nameEn: "Satin ribbon" },
+  { code: "magnetic-closure", nameAr: "إغلاق مغناطيسي", nameEn: "Magnetic closure" },
+  { code: "tear-strip", nameAr: "شريط فتح سريع", nameEn: "Tear strip" },
+  { code: "vent-holes", nameAr: "فتحات تهوية", nameEn: "Vent holes" },
+  { code: "handle-hole", nameAr: "فتحة يد", nameEn: "Hand hole" },
+  { code: "grease-resistant", nameAr: "طبقة مقاومة للدهون (للأغذية)", nameEn: "Grease-resistant coating (food)" },
 ];
 
 const TEMPLATES = [
@@ -86,6 +105,166 @@ const TEMPLATES = [
     print: ["none", "1c", "2c", "4c"],
   },
 ];
+
+const FOOD_AND_BAGS = [
+  {
+    code: "pizza-box",
+    engineKey: "pizza",
+    category: "food-packaging",
+    nameAr: "صندوق بيتزا",
+    nameEn: "Pizza box",
+    descriptionAr: "صندوق مموج مربع بغطاء متصل ولسان أمامي وجدران جانبية مزدوجة.",
+    descriptionEn: "Square corrugated box with an attached lid, front tuck and double side walls.",
+    limits: [200, 500, 200, 500, 30, 70],
+    defaults: [330, 330, 40],
+    materials: ["micro-flute", "corrugated-kraft", "corrugated-white"],
+    print: ["none", "1c", "2c", "4c"],
+    openTop: false,
+  },
+  {
+    code: "paper-bag",
+    engineKey: "bag",
+    category: "paper-bags",
+    nameAr: "كيس ورقي بمقابض",
+    nameEn: "Paper carrier bag",
+    descriptionAr: "كيس بطيّات جانبية وقاع مربع ومقابض ورقية.",
+    descriptionEn: "Gusseted bag with a block bottom and paper handles.",
+    limits: [120, 500, 60, 200, 150, 500],
+    defaults: [260, 120, 330],
+    materials: ["kraft-paper", "white-kraft-paper"],
+    print: ["none", "1c", "2c", "4c"],
+    openTop: true,
+  },
+  {
+    code: "food-tray",
+    engineKey: "tray",
+    category: "food-packaging",
+    nameAr: "صينية تقديم مفتوحة",
+    nameEn: "Open food tray",
+    descriptionAr: "صينية مفتوحة بزوايا ملصوقة للمخبوزات والفواكه والوجبات.",
+    descriptionEn: "Open tray with glued corners for bakery, produce and meals.",
+    limits: [100, 600, 80, 400, 30, 200],
+    defaults: [300, 200, 80],
+    materials: ["micro-flute", "corrugated-kraft", "white-board"],
+    print: ["none", "1c", "2c", "4c"],
+    openTop: true,
+  },
+];
+
+/*
+ * Template catalogue by industry. Limits are provisional (derived from each default size)
+ * and must be confirmed by the factory; every dieline starts as "needs technical review".
+ */
+type Cat = { code: string; engineKey: string; category: string; nameAr: string; nameEn: string; descAr: string; descEn: string; dims: [number, number, number]; industries: string[] };
+const ENGINE_MATERIALS: Record<string, string[]> = {
+  rsc: ["corrugated-kraft", "corrugated-white"],
+  mailer: ["micro-flute", "corrugated-kraft", "corrugated-white", "kraft-board"],
+  rte: ["white-board", "duplex-board", "kraft-board"],
+  ste: ["white-board", "duplex-board", "kraft-board"],
+  pizza: ["micro-flute", "corrugated-kraft", "corrugated-white"],
+  clamshell: ["micro-flute", "white-board", "kraft-board"],
+  tray: ["micro-flute", "corrugated-kraft", "white-board"],
+  telescope: ["rigid-board", "white-board", "duplex-board", "kraft-board"],
+  drawer: ["rigid-board", "white-board", "duplex-board", "kraft-board"],
+  bag: ["kraft-paper", "white-kraft-paper"],
+};
+const OPEN_TOP_ENGINES = ["bag", "tray"];
+const CATALOG: Cat[] = [
+  // shipping & e-commerce
+  { code: "heavy-duty-carton", engineKey: "rsc", category: "shipping-boxes", nameAr: "كرتون شحن مزدوج الجدار", nameEn: "Double-wall shipping carton", descAr: "للأحمال الثقيلة والتصدير والتكديس المرتفع.", descEn: "For heavy loads, export and high stacking.", dims: [500, 400, 400], industries: ["logistics", "electronics"] },
+  { code: "moving-box", engineKey: "rsc", category: "shipping-boxes", nameAr: "كرتون نقل وتخزين", nameEn: "Moving & storage carton", descAr: "مقاس عملي للنقل والأرشفة والمستودعات.", descEn: "A practical size for moving, archiving and warehousing.", dims: [450, 350, 350], industries: ["logistics", "retail"] },
+  { code: "bottle-carton", engineKey: "rsc", category: "shipping-boxes", nameAr: "كرتون زجاجات ومشروبات", nameEn: "Bottle & beverage carton", descAr: "يُستخدم مع فواصل داخلية لحماية الزجاجات.", descEn: "Used with partitions to protect bottles.", dims: [260, 175, 300], industries: ["restaurants", "retail", "coffee"] },
+  { code: "subscription-box", engineKey: "mailer", category: "mailer-boxes", nameAr: "صندوق اشتراكات", nameEn: "Subscription box", descAr: "تجربة فتح مميزة لصناديق الاشتراك الشهرية.", descEn: "A memorable unboxing for monthly subscriptions.", dims: [300, 220, 100], industries: ["ecommerce", "cosmetics", "gifts"] },
+  { code: "electronics-mailer", engineKey: "mailer", category: "mailer-boxes", nameAr: "صندوق إلكترونيات", nameEn: "Electronics mailer", descAr: "صندوق متين للأجهزة والإكسسوارات مع حوامل داخلية.", descEn: "A sturdy mailer for devices and accessories, with inserts.", dims: [220, 160, 60], industries: ["electronics", "ecommerce"] },
+  { code: "apparel-mailer", engineKey: "mailer", category: "mailer-boxes", nameAr: "صندوق ملابس", nameEn: "Apparel mailer", descAr: "صندوق مسطح للملابس والطلبات الإلكترونية.", descEn: "A flat mailer for garments and online orders.", dims: [350, 260, 80], industries: ["fashion", "ecommerce"] },
+  // folding cartons
+  { code: "perfume-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة عطر", nameEn: "Perfume box", descAr: "علبة أنيقة للعطور تناسب البصمة والكفراج.", descEn: "An elegant perfume carton, ideal for foil and embossing.", dims: [65, 65, 140], industries: ["perfumes", "cosmetics", "gifts"] },
+  { code: "cosmetics-carton", engineKey: "rte", category: "folding-cartons", nameAr: "علبة مستحضرات تجميل", nameEn: "Cosmetics carton", descAr: "للكريمات والسيرومات والعبوات الصغيرة.", descEn: "For creams, serums and small containers.", dims: [55, 55, 120], industries: ["cosmetics", "pharma"] },
+  { code: "lipstick-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة أحمر شفاه", nameEn: "Lipstick box", descAr: "علبة صغيرة رفيعة للمنتجات الأنبوبية.", descEn: "A slim carton for tubes and sticks.", dims: [30, 30, 95], industries: ["cosmetics"] },
+  { code: "pharma-carton", engineKey: "rte", category: "folding-cartons", nameAr: "علبة دواء", nameEn: "Pharma carton", descAr: "للأدوية والمكمّلات مع مساحة للنشرة والبيانات.", descEn: "For medicines and supplements, with room for leaflet and data.", dims: [90, 40, 120], industries: ["pharma"] },
+  { code: "supplement-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة مكمّلات غذائية", nameEn: "Supplement box", descAr: "لعبوات الكبسولات والمساحيق.", descEn: "For capsule and powder containers.", dims: [80, 80, 140], industries: ["pharma", "retail"] },
+  { code: "tea-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة شاي", nameEn: "Tea box", descAr: "لأكياس الشاي والأعشاب.", descEn: "For tea bags and herbal infusions.", dims: [120, 70, 160], industries: ["coffee", "retail"] },
+  { code: "coffee-box", engineKey: "rte", category: "folding-cartons", nameAr: "علبة قهوة", nameEn: "Coffee box", descAr: "للبن المطحون والكبسولات.", descEn: "For ground coffee and capsules.", dims: [100, 65, 190], industries: ["coffee", "retail"] },
+  { code: "dry-food-box", engineKey: "rte", category: "folding-cartons", nameAr: "علبة أغذية جافة", nameEn: "Dry food box", descAr: "للحبوب والمعكرونة والوجبات الخفيفة.", descEn: "For cereals, pasta and snacks.", dims: [190, 60, 260], industries: ["retail"] },
+  { code: "soap-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة صابون", nameEn: "Soap box", descAr: "علبة مسطحة للصابون ومنتجات العناية.", descEn: "A flat carton for soap and care products.", dims: [90, 30, 65], industries: ["cosmetics", "retail"] },
+  { code: "candle-box", engineKey: "rte", category: "folding-cartons", nameAr: "علبة شموع", nameEn: "Candle box", descAr: "للشموع المعطّرة والهدايا المنزلية.", descEn: "For scented candles and home gifts.", dims: [90, 90, 110], industries: ["gifts", "retail"] },
+  // restaurants & bakery
+  { code: "burger-box", engineKey: "clamshell", category: "food-packaging", nameAr: "علبة برجر", nameEn: "Burger box", descAr: "علبة صدفية بغطاء متصل للبرجر والساندويتشات.", descEn: "A hinged clamshell for burgers and sandwiches.", dims: [120, 120, 90], industries: ["restaurants"] },
+  { code: "sandwich-box", engineKey: "clamshell", category: "food-packaging", nameAr: "علبة ساندويتش", nameEn: "Sandwich box", descAr: "علبة مستطيلة للساندويتشات والرابات.", descEn: "A long clamshell for sandwiches and wraps.", dims: [190, 90, 70], industries: ["restaurants", "bakery", "coffee"] },
+  { code: "meal-box", engineKey: "clamshell", category: "food-packaging", nameAr: "علبة وجبة", nameEn: "Meal box", descAr: "علبة وجبات سفري متعددة الاستخدام.", descEn: "A takeaway meal box.", dims: [230, 180, 70], industries: ["restaurants"] },
+  { code: "cake-box", engineKey: "telescope", category: "food-packaging", nameAr: "علبة كيك", nameEn: "Cake box", descAr: "غطاء كامل فوق قاعدة، يمكن إضافة شباك شفاف.", descEn: "A full lid over a base; a window can be added.", dims: [250, 250, 120], industries: ["bakery"] },
+  { code: "donut-box", engineKey: "mailer", category: "food-packaging", nameAr: "علبة دونات وحلويات", nameEn: "Donut & pastry box", descAr: "علبة بغطاء للدونات والمعجنات.", descEn: "A lidded box for donuts and pastries.", dims: [300, 200, 70], industries: ["bakery", "coffee"] },
+  { code: "dessert-box", engineKey: "ste", category: "food-packaging", nameAr: "علبة حلويات صغيرة", nameEn: "Dessert box", descAr: "علبة مربعة للقطع الفردية والمخبوزات الصغيرة.", descEn: "A square box for single pieces and small bakes.", dims: [100, 100, 70], industries: ["bakery", "coffee", "gifts"] },
+  // gifts & luxury
+  { code: "gift-box", engineKey: "telescope", category: "gift-boxes", nameAr: "علبة هدايا بغطاء", nameEn: "Lid & base gift box", descAr: "غطاء كامل فوق قاعدة، مناسب للتغليف الفاخر.", descEn: "A full lid over a base, for premium gifting.", dims: [250, 200, 100], industries: ["gifts", "fashion", "perfumes"] },
+  { code: "shoe-box", engineKey: "telescope", category: "gift-boxes", nameAr: "علبة أحذية", nameEn: "Shoe box", descAr: "علبة بغطاء للأحذية والحقائب الصغيرة.", descEn: "A lidded box for shoes and small bags.", dims: [320, 200, 120], industries: ["fashion", "retail"] },
+  { code: "apparel-box", engineKey: "telescope", category: "gift-boxes", nameAr: "علبة ملابس فاخرة", nameEn: "Premium apparel box", descAr: "علبة مسطحة بغطاء للملابس والهدايا.", descEn: "A flat lidded box for garments and gifts.", dims: [350, 250, 80], industries: ["fashion", "gifts"] },
+  { code: "phone-box", engineKey: "telescope", category: "gift-boxes", nameAr: "علبة جهاز إلكتروني", nameEn: "Device box", descAr: "علبة بغطاء للهواتف والإكسسوارات.", descEn: "A lidded box for phones and accessories.", dims: [170, 90, 50], industries: ["electronics"] },
+  { code: "perfume-drawer", engineKey: "drawer", category: "gift-boxes", nameAr: "علبة عطر بدرج", nameEn: "Perfume drawer box", descAr: "غلاف مطبوع ودرج داخلي لتجربة فتح فاخرة.", descEn: "A printed sleeve and inner drawer for a luxurious reveal.", dims: [160, 100, 70], industries: ["perfumes", "gifts", "cosmetics"] },
+  { code: "jewelry-drawer", engineKey: "drawer", category: "gift-boxes", nameAr: "علبة مجوهرات بدرج", nameEn: "Jewellery drawer box", descAr: "علبة صغيرة بدرج للمجوهرات والساعات.", descEn: "A small drawer box for jewellery and watches.", dims: [100, 80, 40], industries: ["jewelry", "gifts"] },
+  { code: "chocolate-drawer", engineKey: "drawer", category: "gift-boxes", nameAr: "علبة شوكولاتة بدرج", nameEn: "Chocolate drawer box", descAr: "علبة مسطحة بدرج للشوكولاتة والتمور.", descEn: "A flat drawer box for chocolates and dates.", dims: [200, 120, 40], industries: ["gifts", "bakery", "coffee"] },
+  // bags
+  { code: "takeaway-bag", engineKey: "bag", category: "paper-bags", nameAr: "كيس طلبات سفري", nameEn: "Takeaway bag", descAr: "كيس ورقي بقاع عريض للطلبات والمشروبات.", descEn: "A wide-bottom paper bag for orders and drinks.", dims: [220, 130, 260], industries: ["restaurants", "coffee", "bakery"] },
+  { code: "gift-bag", engineKey: "bag", category: "paper-bags", nameAr: "كيس هدايا", nameEn: "Gift bag", descAr: "كيس أنيق للهدايا والعطور والمجوهرات.", descEn: "An elegant bag for gifts, perfumes and jewellery.", dims: [200, 90, 250], industries: ["gifts", "perfumes", "jewelry"] },
+  { code: "shopping-bag", engineKey: "bag", category: "paper-bags", nameAr: "كيس تسوق فاخر", nameEn: "Premium shopping bag", descAr: "كيس كبير لمحلات الأزياء والعطور.", descEn: "A large bag for fashion and perfume stores.", dims: [400, 150, 350], industries: ["fashion", "perfumes", "retail"] },
+  // dates, sweets & regional
+  { code: "dates-box", engineKey: "telescope", category: "food-packaging", nameAr: "علبة تمور بغطاء", nameEn: "Dates box (lid & base)", descAr: "علبة تمور مسطحة بغطاء كامل، مناسبة للضيافة والهدايا.", descEn: "A flat lid-and-base dates box for hospitality and gifts.", dims: [200, 140, 45], industries: ["dates", "gifts", "retail"] },
+  { code: "dates-drawer", engineKey: "drawer", category: "gift-boxes", nameAr: "علبة تمور فاخرة بدرج", nameEn: "Luxury dates drawer box", descAr: "غلاف مطبوع ودرج داخلي لتمور الهدايا الفاخرة.", descEn: "A printed sleeve with an inner drawer for premium dates.", dims: [240, 160, 50], industries: ["dates", "gifts"] },
+  { code: "maamoul-tray", engineKey: "tray", category: "food-packaging", nameAr: "صينية معمول وحلويات", nameEn: "Maamoul & sweets tray", descAr: "صينية مفتوحة للمعمول والحلويات الشرقية.", descEn: "An open tray for maamoul and Arabic sweets.", dims: [260, 180, 50], industries: ["dates", "bakery"] },
+  { code: "kunafa-tray", engineKey: "tray", category: "food-packaging", nameAr: "صينية كنافة", nameEn: "Kunafa tray", descAr: "صينية مربعة للكنافة والحلويات الساخنة.", descEn: "A square tray for kunafa and hot desserts.", dims: [240, 240, 50], industries: ["dates", "bakery", "restaurants"] },
+  { code: "oud-box", engineKey: "drawer", category: "gift-boxes", nameAr: "علبة عود بدرج", nameEn: "Oud drawer box", descAr: "علبة فاخرة بدرج لدهن العود والعطور الشرقية.", descEn: "A luxury drawer box for oud oil and oriental perfumes.", dims: [140, 90, 60], industries: ["oud", "perfumes", "gifts"] },
+  { code: "bakhoor-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة بخور", nameEn: "Bakhoor box", descAr: "علبة للبخور والمعمول المعطّر.", descEn: "A carton for bakhoor and scented incense.", dims: [100, 100, 60], industries: ["oud", "gifts"] },
+  { code: "abaya-box", engineKey: "telescope", category: "gift-boxes", nameAr: "علبة عباية", nameEn: "Abaya box", descAr: "علبة مسطحة كبيرة بغطاء للعبايات والشيلات.", descEn: "A large flat lidded box for abayas and scarves.", dims: [400, 300, 80], industries: ["fashion", "gifts"] },
+  { code: "ramadan-gift-box", engineKey: "telescope", category: "gift-boxes", nameAr: "علبة هدايا رمضان والعيد", nameEn: "Ramadan & Eid gift box", descAr: "علبة هدايا موسمية للتمور والحلويات والقهوة.", descEn: "A seasonal gift box for dates, sweets and coffee.", dims: [300, 220, 90], industries: ["gifts", "dates", "coffee"] },
+  { code: "eid-mailer", engineKey: "mailer", category: "mailer-boxes", nameAr: "صندوق عيدية وهدايا", nameEn: "Eid gift mailer", descAr: "صندوق بغطاء متصل لهدايا العيد والتوصيل.", descEn: "A lidded mailer for Eid gifts and delivery.", dims: [250, 180, 80], industries: ["gifts", "ecommerce"] },
+  { code: "corporate-gift-box", engineKey: "telescope", category: "gift-boxes", nameAr: "علبة هدايا الشركات", nameEn: "Corporate gift box", descAr: "علبة فاخرة لهدايا الموظفين والعملاء مع إسفنج داخلي.", descEn: "A premium box for employee and client gifts, with a foam insert.", dims: [320, 240, 100], industries: ["gifts"] },
+  // more food
+  { code: "cookie-box", engineKey: "telescope", category: "food-packaging", nameAr: "علبة كوكيز", nameEn: "Cookie box", descAr: "علبة بغطاء للكوكيز والبسكويت.", descEn: "A lidded box for cookies and biscuits.", dims: [200, 200, 60], industries: ["bakery", "gifts"] },
+  { code: "cupcake-box", engineKey: "telescope", category: "food-packaging", nameAr: "علبة كب كيك", nameEn: "Cupcake box", descAr: "علبة لأربع أو ست قطع كب كيك مع حامل داخلي.", descEn: "A box for four or six cupcakes, with an insert.", dims: [250, 170, 100], industries: ["bakery"] },
+  { code: "wrap-box", engineKey: "clamshell", category: "food-packaging", nameAr: "علبة شاورما وراب", nameEn: "Wrap & shawarma box", descAr: "علبة صدفية طويلة للشاورما والرابات.", descEn: "A long clamshell for shawarma and wraps.", dims: [210, 75, 60], industries: ["restaurants"] },
+  { code: "hotdog-box", engineKey: "clamshell", category: "food-packaging", nameAr: "علبة هوت دوغ", nameEn: "Hot dog box", descAr: "علبة صدفية للهوت دوغ والساندويتشات الطويلة.", descEn: "A clamshell for hot dogs and long sandwiches.", dims: [190, 70, 60], industries: ["restaurants"] },
+  { code: "kids-meal-box", engineKey: "mailer", category: "food-packaging", nameAr: "علبة وجبة أطفال", nameEn: "Kids meal box", descAr: "علبة ملونة بغطاء لوجبات الأطفال.", descEn: "A colourful lidded box for kids' meals.", dims: [200, 150, 90], industries: ["restaurants"] },
+  // care, electronics, retail
+  { code: "skincare-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة عناية بالبشرة", nameEn: "Skincare box", descAr: "علبة للسيروم والكريمات بتشطيب فاخر.", descEn: "A carton for serums and creams with a premium finish.", dims: [50, 50, 130], industries: ["cosmetics"] },
+  { code: "hair-oil-box", engineKey: "rte", category: "folding-cartons", nameAr: "علبة زيت شعر", nameEn: "Hair oil box", descAr: "علبة للزيوت ومنتجات العناية بالشعر.", descEn: "A carton for oils and hair-care products.", dims: [60, 60, 170], industries: ["cosmetics"] },
+  { code: "watch-box", engineKey: "drawer", category: "gift-boxes", nameAr: "علبة ساعة", nameEn: "Watch box", descAr: "علبة فاخرة بدرج للساعات والإكسسوارات.", descEn: "A luxury drawer box for watches and accessories.", dims: [120, 100, 80], industries: ["jewelry", "gifts"] },
+  { code: "mug-box", engineKey: "rte", category: "folding-cartons", nameAr: "علبة كوب", nameEn: "Mug box", descAr: "علبة للأكواب والفناجين والهدايا.", descEn: "A carton for mugs, cups and gifts.", dims: [120, 95, 110], industries: ["coffee", "gifts", "retail"] },
+  { code: "accessories-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة إكسسوارات الجوال", nameEn: "Phone accessories box", descAr: "علبة للشواحن والسماعات والكابلات.", descEn: "A carton for chargers, earphones and cables.", dims: [90, 40, 140], industries: ["electronics", "retail"] },
+  { code: "book-mailer", engineKey: "mailer", category: "mailer-boxes", nameAr: "صندوق كتب", nameEn: "Book mailer", descAr: "صندوق مسطح لشحن الكتب والمطبوعات.", descEn: "A flat mailer for books and printed matter.", dims: [250, 180, 50], industries: ["ecommerce", "retail"] },
+  { code: "archive-box", engineKey: "rsc", category: "shipping-boxes", nameAr: "صندوق أرشيف", nameEn: "Archive box", descAr: "صندوق لحفظ الملفات والأوراق.", descEn: "A box for storing files and documents.", dims: [380, 300, 270], industries: ["logistics", "retail"] },
+  { code: "plant-box", engineKey: "rsc", category: "shipping-boxes", nameAr: "صندوق نباتات وزهور", nameEn: "Plant & flower box", descAr: "صندوق طويل لشحن النباتات والزهور.", descEn: "A tall box for shipping plants and flowers.", dims: [200, 200, 450], industries: ["gifts", "ecommerce"] },
+];
+const EXISTING_INDUSTRIES: Record<string, string[]> = {
+  "shipping-carton": ["logistics", "ecommerce", "retail"],
+  "mailer-box": ["ecommerce", "fashion", "cosmetics"],
+  "folding-carton": ["retail", "cosmetics", "pharma"],
+  "pizza-box": ["restaurants"],
+  "paper-bag": ["retail", "fashion"],
+  "food-tray": ["restaurants", "bakery", "retail"],
+};
+const provisionalLimits = ([l, w, h]: [number, number, number]) => [
+  Math.max(20, Math.round(l * 0.4)),
+  Math.round(l * 2.2),
+  Math.max(20, Math.round(w * 0.4)),
+  Math.round(w * 2.2),
+  Math.max(15, Math.round(h * 0.4)),
+  Math.round(h * 2.2),
+];
+const MORE_TEMPLATES = CATALOG.map((t) => ({
+  code: t.code,
+  engineKey: t.engineKey,
+  category: t.category,
+  nameAr: t.nameAr,
+  nameEn: t.nameEn,
+  descriptionAr: t.descAr,
+  descriptionEn: t.descEn,
+  limits: provisionalLimits(t.dims),
+  defaults: t.dims,
+  materials: ENGINE_MATERIALS[t.engineKey],
+  print: ["none", "1c", "2c", "4c"],
+  openTop: OPEN_TOP_ENGINES.includes(t.engineKey),
+  industries: t.industries,
+}));
 
 const FAQ = [
   {
@@ -154,13 +333,24 @@ async function main() {
     }
   }
 
-  for (const t of TEMPLATES) {
+  // rename foil to the trade term (البصمة); other seeded rows are left as admins edited them
+  await db.finishingOption.update({ where: { code: "hot-foil" }, data: { nameAr: "بصمة فويل (ذهبي / فضي)", nameEn: "Hot foil stamping (gold / silver)" } }).catch(() => undefined);
+
+  for (const t of [
+    ...TEMPLATES.map((x) => ({ ...x, openTop: false, industries: EXISTING_INDUSTRIES[x.code] ?? [] })),
+    ...FOOD_AND_BAGS.map((x) => ({ ...x, industries: EXISTING_INDUSTRIES[x.code] ?? [] })),
+    ...MORE_TEMPLATES,
+  ]) {
     const existing = await db.packagingTemplate.findUnique({ where: { code: t.code } });
-    if (existing) continue;
+    if (existing) {
+      // only fill industry tags if an admin hasn't set any
+      if (!existing.industries.length) await db.packagingTemplate.update({ where: { id: existing.id }, data: { industries: t.industries } });
+      continue;
+    }
     const category = await db.packagingCategory.findUniqueOrThrow({ where: { slug: t.category } });
     await db.$transaction(async (tx) => {
       const tpl = await tx.packagingTemplate.create({
-        data: { code: t.code, engineKey: t.engineKey, categoryId: category.id, nameAr: t.nameAr, nameEn: t.nameEn, descriptionAr: t.descriptionAr, descriptionEn: t.descriptionEn },
+        data: { code: t.code, engineKey: t.engineKey, categoryId: category.id, nameAr: t.nameAr, nameEn: t.nameEn, descriptionAr: t.descriptionAr, descriptionEn: t.descriptionEn, industries: t.industries },
       });
       const [minL, maxL, minW, maxW, minH, maxH] = t.limits;
       const [dL, dW, dH] = t.defaults;
@@ -181,10 +371,12 @@ async function main() {
           dielineValidated: false,
           constraints: { note: "System default limits — to be confirmed by the factory" },
           printOptions: t.print,
-          panels: { create: SURFACES.map((s) => ({ ...s, printable: true })) },
+          panels: { create: SURFACES.filter((s) => !(t.openTop && s.key === "top")).map((s) => ({ ...s, printable: true })) },
         },
       });
       await tx.packagingTemplate.update({ where: { id: tpl.id }, data: { currentVersionId: v.id } });
+      // a category becomes designable once it has its first template
+      await tx.packagingCategory.update({ where: { id: category.id }, data: { status: "ACTIVE" } });
       for (const code of t.materials) {
         const m = allMaterials.find((x) => x.code === code)!;
         await tx.templateMaterialRule.create({ data: { templateId: tpl.id, materialId: m.id } });

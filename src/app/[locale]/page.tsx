@@ -4,6 +4,8 @@ import type { Locale } from "@/i18n/config";
 import { Experience } from "@/components/experience/Experience";
 import { ChooseBox } from "@/components/experience/ChooseBox";
 import { FaqShowcase } from "@/components/experience/FaqShowcase";
+import { CartonGuide } from "@/components/experience/CartonGuide";
+import { IndustryGrid } from "@/components/experience/IndustryGrid";
 import { cx } from "@/components/ui";
 
 /*
@@ -25,9 +27,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
   ]);
   const templates = await db.packagingTemplate.findMany({
     where: { isEnabled: true, currentVersionId: { not: null } },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     include: { currentVersion: { include: { panels: true } }, materialRules: { include: { material: true } } },
   });
+  // comparison shows one representative per structure; the industry grid shows the whole catalogue
+  const seenEngines = new Set<string>();
+  const representatives = templates.filter((tp) => (seenEngines.has(tp.engineKey) ? false : (seenEngines.add(tp.engineKey), true)));
   const display = "font-medium leading-[0.9]";
 
   return (
@@ -37,13 +42,13 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
       />
 
       <ChooseBox
-        templates={templates
-          .filter((tp) => tp.currentVersion && ["rsc", "mailer", "rte"].includes(tp.engineKey))
+        templates={representatives
+          .filter((tp) => tp.currentVersion && ["rsc", "mailer", "rte", "pizza", "bag", "tray"].includes(tp.engineKey))
           .map((tp) => {
             const v = tp.currentVersion!;
             return {
               code: tp.code,
-              engineKey: tp.engineKey as "rsc" | "mailer" | "rte",
+              engineKey: tp.engineKey as "rsc" | "mailer" | "rte" | "pizza" | "bag" | "tray",
               name: ar ? tp.nameAr : tp.nameEn,
               description: ar ? tp.descriptionAr : tp.descriptionEn,
               limits: { minL: v.minLengthMm, maxL: v.maxLengthMm, minW: v.minWidthMm, maxW: v.maxWidthMm, minH: v.minHeightMm, maxH: v.maxHeightMm },
@@ -53,6 +58,10 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
             };
           })}
       />
+
+      <IndustryGrid templates={templates.map((tp) => ({ code: tp.code, engineKey: tp.engineKey, name: ar ? tp.nameAr : tp.nameEn, industries: tp.industries }))} />
+
+      <CartonGuide />
 
       <div className="relative z-20 bg-walnut">
         {/* ── How it works ── */}

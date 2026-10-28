@@ -52,7 +52,7 @@ export default function DielineView({
     const oy = (ch - dieline.height * s - 24) / 2;
     ctx.translate(ox, oy);
     drawDieline(ctx, dieline, specs, canvases, { scale: s, materialColor, showArt: true, showLabels: true, locale });
-    ctx.fillStyle = "#b3a08a";
+    ctx.fillStyle = "#616781";
     ctx.font = "500 12px Inter, sans-serif";
     ctx.textAlign = "center";
     ctx.direction = "ltr";

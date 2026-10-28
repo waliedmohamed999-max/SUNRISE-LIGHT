@@ -43,8 +43,17 @@ export const matAt = (s: number) => 1 - ramp(s, 0.45, 1.1);
 /** Corrugated board macro (cross-section sample). */
 export const macroAt = (s: number) => window4(s, CH.macro[0] - 0.1, CH.macro[0] + 0.35, CH.macro[1] - 0.35, CH.macro[1] + 0.05);
 
-/** Hero carton presence: away during the macro, the blueprint and the light word chapter. */
-export const cartonAt = (s: number) => 1 - Math.max(macroAt(s), ramp(s, CH.blueprint[0] - 0.1, CH.blueprint[0] + 0.3));
+/** Finishes lab (foil / emboss / spot UV) and its three stages. */
+export const finishAt = (s: number) => window4(s, CH.finish[0] - 0.1, CH.finish[0] + 0.35, CH.finish[1] - 0.35, CH.finish[1] + 0.05);
+export function finishStageAt(s: number) {
+  const [a, b] = CH.finish;
+  const span = (b - a) / 3;
+  const i = Math.min(2, Math.max(0, Math.floor((s - a) / span)));
+  return { index: i, local: Math.min(1, Math.max(0, (s - a - i * span) / span)), span };
+}
+
+/** Hero carton presence: away during the finishes lab, the macro, the blueprint and the light word chapter. */
+export const cartonAt = (s: number) => 1 - Math.max(finishAt(s), macroAt(s), ramp(s, CH.blueprint[0] - 0.1, CH.blueprint[0] + 0.3));
 
 /** Which feature panel (0..2) is active. */
 export function featureAt(s: number) {
@@ -88,16 +97,19 @@ const POSES: { at: number; pose: CameraPose }[] = [
   { at: 3.95, pose: { pos: [-5.6, 3.0, 6.6], target: [0, 0.2, 0] } }, // other side, folded again
   { at: 5.2, pose: { pos: [7.4, 4.0, 9.4], target: [0, -0.6, 0] } }, // resized, above the counter
   { at: 6.3, pose: { pos: [-5.2, 2.8, 7.4], target: [0, 0.3, 0] } }, // printing
+  // finishes lab: square-on to the printed panel, drifting slowly
+  { at: 6.9, pose: { pos: [0.5, 0.35, 4.4], target: [0, 0.05, 0] } },
+  { at: 8.3, pose: { pos: [-0.5, 0.2, 4.0], target: [0, 0.05, 0] } },
   // macro: low and close along the corrugated edge
-  { at: 6.9, pose: { pos: [1.6, 0.45, 2.4], target: [0, 0.05, 0] } },
-  { at: 7.6, pose: { pos: [-1.0, 0.3, 1.7], target: [0, 0.02, 0] } },
+  { at: 9.0, pose: { pos: [1.6, 0.45, 2.4], target: [0, 0.05, 0] } },
+  { at: 9.7, pose: { pos: [-1.0, 0.3, 1.7], target: [0, 0.02, 0] } },
   // features: carton on one side of the frame, frosted panel on the other
-  { at: 8.1, pose: { pos: [6.8, 3.4, 8.2], target: [-1.6, 0.2, 0] } },
-  { at: 10.4, pose: { pos: [-6.2, 3.8, 8.6], target: [-1.6, 0.2, 0] } },
-  { at: 11.2, pose: { pos: [0.0, 3.6, 11.5], target: [0, 0.2, 0] } }, // family line-up
-  { at: 11.9, pose: { pos: [0.0, 3.6, 11.5], target: [0, 0.2, 0] } },
-  { at: 12.5, pose: { pos: [0.0, 7.5, 9.0], target: [0, 7.0, 0] } }, // tilt up: products leave the frame
-  { at: 16.4, pose: { pos: [0.0, 7.5, 9.0], target: [0, 7.0, 0] } },
+  { at: 10.2, pose: { pos: [6.8, 3.4, 8.2], target: [-1.6, 0.2, 0] } },
+  { at: 12.5, pose: { pos: [-6.2, 3.8, 8.6], target: [-1.6, 0.2, 0] } },
+  { at: 13.3, pose: { pos: [0.0, 3.6, 11.5], target: [0, 0.2, 0] } }, // family line-up
+  { at: 14.0, pose: { pos: [0.0, 3.6, 11.5], target: [0, 0.2, 0] } },
+  { at: 14.6, pose: { pos: [0.0, 7.5, 9.0], target: [0, 7.0, 0] } }, // tilt up: products leave the frame
+  { at: 18.5, pose: { pos: [0.0, 7.5, 9.0], target: [0, 7.0, 0] } },
 ];
 
 export function cameraAt(s: number): CameraPose {

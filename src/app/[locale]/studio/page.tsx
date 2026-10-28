@@ -14,9 +14,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return { title: t.studio.title, alternates: { canonical: `/${locale}/studio`, languages: { ar: "/ar/studio", en: "/en/studio" } } };
 }
 
-export default async function StudioPage({ params, searchParams }: { params: Promise<{ locale: Locale }>; searchParams: Promise<{ design?: string; template?: string }> }) {
+export default async function StudioPage({ params, searchParams }: { params: Promise<{ locale: Locale }>; searchParams: Promise<{ design?: string; template?: string; industry?: string }> }) {
   const { locale } = await params;
-  const { design: designId, template } = await searchParams;
+  const { design: designId, template, industry } = await searchParams;
   const t = getDict(locale);
   const [catalog, user] = await Promise.all([loadCatalog(), getCurrentUser()]);
 
@@ -40,7 +40,7 @@ export default async function StudioPage({ params, searchParams }: { params: Pro
   return (
     <>
       <h1 className="sr-only">{t.studio.title}</h1>
-      <StudioApp catalog={catalog} initial={initial} initialTemplateCode={template} isLoggedIn={!!user} maxUploadMb={Number(process.env.MAX_UPLOAD_MB || 10)} />
+      <StudioApp catalog={catalog} initial={initial} initialTemplateCode={template ?? (industry ? catalog.templates.find((x) => x.industries.includes(industry))?.code : undefined)} isLoggedIn={!!user} maxUploadMb={Number(process.env.MAX_UPLOAD_MB || 10)} />
     </>
   );
 }

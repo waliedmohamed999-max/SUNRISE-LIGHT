@@ -6,8 +6,8 @@ export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Bool
 type Variant = "primary" | "accent" | "outline" | "ghost" | "danger";
 // Editorial controls: one filled pill (bark), outlined ghost buttons with a cream hairline
 const variants: Record<Variant, string> = {
-  primary: "rounded-[36px] bg-bark text-cream hover:bg-[#4a3120]",
-  accent: "rounded-[36px] bg-bark text-cream ring-1 ring-ember/60 hover:bg-[#4a3120] hover:ring-ember",
+  primary: "rounded-[36px] bg-btn text-btn-fg hover:bg-btn-hover",
+  accent: "rounded-[36px] bg-ember text-white hover:brightness-110",
   outline: "rounded-[22.5px] border border-cream/80 bg-transparent text-cream hover:bg-cream hover:text-walnut",
   ghost: "rounded-[22.5px] text-cream/80 hover:text-cream hover:bg-cream/5",
   danger: "rounded-[22.5px] border border-danger/70 text-danger hover:bg-danger hover:text-walnut",

@@ -2,6 +2,7 @@
 
 import type { DesignDocument, DesignElement, SurfaceDoc, TextElement } from "./document";
 import { STUDIO_FONTS } from "./fonts";
+import { drawIcon } from "./icons";
 import type { Dieline, Dimensions, SurfaceKey, SurfaceSpec } from "@/packaging/types";
 
 /* ───────────────────────── Assets ───────────────────────── */
@@ -79,17 +80,129 @@ function drawText(ctx: CanvasRenderingContext2D, el: TextElement, s: number) {
 
 /* ───────────────────────── Elements & surfaces ───────────────────────── */
 
+const FOIL_COLOR = { "foil-gold": "#D4A84B", "foil-silver": "#C9CCD1" } as const;
+
+/** Element artwork only (no finish treatment), centred on the element's local origin. */
+function drawElementRaw(ctx: CanvasRenderingContext2D, el: DesignElement, s: number, images: ImageMap) {
+  if (el.type === "image") {
+    const img = images.get(el.assetId);
+    if (img) ctx.drawImage(img, (-el.width / 2) * s, (-el.height / 2) * s, el.width * s, el.height * s);
+  } else if (el.type === "icon") {
+    drawIcon(ctx, el.icon, el.width * s, el.height * s, el.color);
+  } else {
+    drawText(ctx, el, s);
+  }
+}
+
+let scratch: HTMLCanvasElement | null = null;
+/** Element silhouette filled with a flat colour (used for foil and for finish maps). */
+function drawElementSilhouette(ctx: CanvasRenderingContext2D, el: DesignElement, s: number, images: ImageMap, color: string) {
+  scratch ??= document.createElement("canvas");
+  const w = Math.max(2, Math.ceil(Math.hypot(el.width, el.height) * s) + 4);
+  scratch.width = w;
+  scratch.height = w;
+  const sc = scratch.getContext("2d")!;
+  sc.setTransform(1, 0, 0, 1, w / 2, w / 2);
+  drawElementRaw(sc, el, s, images);
+  sc.globalCompositeOperation = "source-in";
+  sc.setTransform(1, 0, 0, 1, 0, 0);
+  sc.fillStyle = color;
+  sc.fillRect(0, 0, w, w);
+  ctx.drawImage(scratch, -w / 2, -w / 2);
+}
+
 export function drawElement(ctx: CanvasRenderingContext2D, el: DesignElement, s: number, images: ImageMap) {
   ctx.save();
   ctx.translate(el.x * s, el.y * s);
   ctx.rotate((el.rotation * Math.PI) / 180);
-  if (el.type === "image") {
-    const img = images.get(el.assetId);
-    if (img) ctx.drawImage(img, (-el.width / 2) * s, (-el.height / 2) * s, el.width * s, el.height * s);
+  const finish = el.finish ?? "none";
+  if (finish === "foil-gold" || finish === "foil-silver") {
+    // foil replaces the ink with metal; a light gradient sells the sheen in flat views
+    drawElementSilhouette(ctx, el, s, images, FOIL_COLOR[finish]);
+  } else if (finish === "emboss" || finish === "deboss") {
+    const d = Math.max(1, s * 0.35);
+    const [hi, lo] = finish === "emboss" ? ["rgba(255,255,255,0.45)", "rgba(0,0,0,0.35)"] : ["rgba(0,0,0,0.35)", "rgba(255,255,255,0.45)"];
+    ctx.save();
+    ctx.translate(-d, -d);
+    drawElementSilhouette(ctx, el, s, images, hi);
+    ctx.translate(2 * d, 2 * d);
+    drawElementSilhouette(ctx, el, s, images, lo);
+    ctx.restore();
+    drawElementRaw(ctx, el, s, images);
   } else {
-    drawText(ctx, el, s);
+    drawElementRaw(ctx, el, s, images);
   }
   ctx.restore();
+}
+
+/**
+ * Grayscale finish maps for the 3D preview, one set per surface:
+ *  rough — paper ≈ 0.85, spot UV ≈ 0.12, foil ≈ 0.22
+ *  metal — 0 except foil (1)
+ *  bump  — 128 flat, emboss lighter (raised), deboss darker (recessed)
+ * Returns null for surfaces without any finished element (cheaper plain material).
+ */
+export function renderFinishMaps(
+  doc: DesignDocument,
+  specs: SurfaceSpec[],
+  images: ImageMap,
+  maxPx = 512,
+): Partial<Record<SurfaceKey, { rough: HTMLCanvasElement; metal: HTMLCanvasElement; bump: HTMLCanvasElement }>> {
+  const out: Partial<Record<SurfaceKey, { rough: HTMLCanvasElement; metal: HTMLCanvasElement; bump: HTMLCanvasElement }>> = {};
+  for (const spec of specs) {
+    const els = doc.surfaces[spec.key].elements.filter((e) => e.finish && e.finish !== "none");
+    const coating = doc.surfaces[spec.key].coating ?? "none";
+    if (!els.length && coating === "none") continue;
+    // base roughness from the face coating: plain board .85, matte .7, gloss .15, soft-touch .95
+    const BASE: Record<string, number> = { none: 217, matte: 178, gloss: 38, "soft-touch": 242 };
+    const s = Math.min(maxPx / Math.max(spec.w, spec.h), 8);
+    const cw = Math.max(2, Math.round(spec.w * s));
+    const ch = Math.max(2, Math.round(spec.h * s));
+    const make = (base: string) => {
+      const c = document.createElement("canvas");
+      c.width = cw;
+      c.height = ch;
+      const x = c.getContext("2d")!;
+      x.fillStyle = base;
+      x.fillRect(0, 0, cw, ch);
+      return c;
+    };
+    const rv = BASE[coating];
+    const rough = make(`rgb(${rv},${rv},${rv})`);
+    const metal = make("rgb(0,0,0)");
+    const bump = make("rgb(128,128,128)");
+    const paint = (c: HTMLCanvasElement, el: DesignElement, color: string, blur = 0) => {
+      const x = c.getContext("2d")!;
+      x.save();
+      if (blur) x.filter = `blur(${blur}px)`;
+      x.translate(el.x * s, el.y * s);
+      x.rotate((el.rotation * Math.PI) / 180);
+      drawElementSilhouette(x, el, s, images, color);
+      x.restore();
+    };
+    for (const el of els) {
+      switch (el.finish) {
+        case "foil-gold":
+        case "foil-silver":
+          paint(rough, el, "rgb(56,56,56)");
+          paint(metal, el, "rgb(225,225,225)"); // ≈0.88: keeps some gold albedo under the reflection
+          paint(bump, el, "rgb(150,150,150)", 0.6);
+          break;
+        case "spot-uv":
+          paint(rough, el, "rgb(30,30,30)");
+          paint(bump, el, "rgb(140,140,140)", 0.6);
+          break;
+        case "emboss":
+          paint(bump, el, "rgb(255,255,255)", Math.max(1, s * 0.6));
+          break;
+        case "deboss":
+          paint(bump, el, "rgb(0,0,0)", Math.max(1, s * 0.6));
+          break;
+      }
+    }
+    out[spec.key] = { rough, metal, bump };
+  }
+  return out;
 }
 
 /** Deterministic paper/board texture so kraft and corrugated read as board, not flat colour. */
@@ -290,7 +403,17 @@ export function renderIsoThumbnail(
   const rTL = P(L / 2, Ht / 2, Wd / 2);
   face(canvases.right, rTL, sub(P(L / 2, Ht / 2, -Wd / 2), rTL), sub(P(L / 2, -Ht / 2, Wd / 2), rTL), -0.16);
   const tTL = P(-L / 2, Ht / 2, -Wd / 2);
-  face(canvases.top, tTL, sub(P(L / 2, Ht / 2, -Wd / 2), tTL), sub(P(-L / 2, Ht / 2, Wd / 2), tTL), 0.1);
+  if (canvases.top) {
+    face(canvases.top, tTL, sub(P(L / 2, Ht / 2, -Wd / 2), tTL), sub(P(-L / 2, Ht / 2, Wd / 2), tTL), 0.1);
+  } else {
+    // open top (trays, bags): show the shaded opening
+    const pts = [P(-L / 2, Ht / 2, -Wd / 2), P(L / 2, Ht / 2, -Wd / 2), P(L / 2, Ht / 2, Wd / 2), P(-L / 2, Ht / 2, Wd / 2)];
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(ox + x * k, oy + y * k) : ctx.moveTo(ox + x * k, oy + y * k)));
+    ctx.closePath();
+    ctx.fillStyle = "rgba(30,18,10,0.55)";
+    ctx.fill();
+  }
   return out;
 }
 

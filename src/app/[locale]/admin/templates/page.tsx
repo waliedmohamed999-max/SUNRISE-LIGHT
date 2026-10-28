@@ -13,7 +13,7 @@ export default async function AdminTemplates({ params }: { params: Promise<{ loc
   const t = getDict(locale);
   const [templates, materials] = await Promise.all([
     db.packagingTemplate.findMany({
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       include: { currentVersion: { include: { panels: true } }, materialRules: true, category: true, _count: { select: { versions: true, designs: true } } },
     }),
     db.materialType.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, nameAr: true, nameEn: true } }),
@@ -59,6 +59,7 @@ export default async function AdminTemplates({ params }: { params: Promise<{ loc
               dielineValidated: tpl.currentVersion.dielineValidated,
               panels: tpl.currentVersion.panels.map((p) => ({ key: p.key, name: locale === "ar" ? p.nameAr : p.nameEn, printable: p.printable })),
               materialIds: tpl.materialRules.map((r) => r.materialId),
+              industries: tpl.industries,
             }}
           />
         ) : null,

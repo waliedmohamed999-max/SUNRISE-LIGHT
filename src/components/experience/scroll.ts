@@ -28,10 +28,11 @@ export const CH = {
   unfold: [2.2, 3.9],
   resize: [3.9, 5.2],
   print: [5.2, 6.5],
-  macro: [6.5, 7.8],
-  features: [7.8, 10.6],
-  family: [10.6, 12.1],
-  blueprint: [12.1, 13.9],
-  word: [13.9, 15.6],
+  finish: [6.5, 8.6],
+  macro: [8.6, 9.9],
+  features: [9.9, 12.7],
+  family: [12.7, 14.2],
+  blueprint: [14.2, 16.0],
+  word: [16.0, 17.7],
 } as const;
-export const CINEMA_SCREENS = 16.4;
+export const CINEMA_SCREENS = 18.5;

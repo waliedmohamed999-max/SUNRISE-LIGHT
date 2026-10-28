@@ -67,7 +67,7 @@ export function Footer({ locale, contact }: { locale: Locale; contact: { phone: 
         <div className="relative flex min-h-[100dvh] flex-col justify-between px-4 pt-24 pb-8 sm:px-8">
           {/* statement */}
           <div className="grid gap-10 lg:grid-cols-[auto_1fr]">
-            <LogoMark className="size-16 sm:size-20" />
+            <LogoMark className="h-20 sm:h-28" />
             <div className="lg:justify-self-end lg:text-end">
               <p className="display max-w-3xl text-[29px] leading-[0.95] font-medium sm:text-[41px] lg:text-[51px]">{t.story.closingStatement}</p>
               <p className="display mt-5 text-[18px] text-cream/70 sm:text-[24px]">{t.story.closingSub}</p>

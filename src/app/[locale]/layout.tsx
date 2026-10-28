@@ -37,8 +37,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
         ? ["مصنع كرتون", "مصنع علب كرتون", "تصنيع علب كرتونية", "طباعة كراتين", "علب تغليف حسب الطلب", "تصميم علب كرتون", "مصنع تغليف ورقي"]
         : ["Custom Packaging", "Cardboard Box Manufacturer", "Printed Packaging Boxes", "Custom Corrugated Boxes", "Packaging Design Online"],
     alternates: { canonical: `/${l}`, languages: { ar: "/ar", en: "/en", "x-default": "/ar" } },
-    openGraph: { type: "website", siteName: t.brand.name, title, description, locale: l === "ar" ? "ar_SA" : "en_US" },
-    icons: { icon: "/icon.svg" },
+    openGraph: { type: "website", siteName: t.brand.name, title, description, locale: l === "ar" ? "ar_SA" : "en_US", images: [{ url: "/brand/og.png", width: 1200, height: 630, alt: t.brand.name }] },
+    twitter: { card: "summary_large_image", title, description, images: ["/brand/og.png"] },
+    icons: { icon: [{ url: "/brand/icon-48.png", sizes: "48x48", type: "image/png" }, { url: "/brand/icon-512.png", sizes: "512x512", type: "image/png" }], apple: "/brand/apple-touch-icon.png" },
   };
 }
 

@@ -40,7 +40,7 @@ export default async function QuotationDocumentPage({ params }: { params: Promis
       </div>
       <article className="mx-auto max-w-[210mm] bg-white p-[14mm] text-sm shadow-[var(--shadow-lift)] print:shadow-none">
         <header className="flex items-start justify-between gap-6 border-b-2 border-sun pb-6">
-          <Logo locale={locale} />
+          <Logo locale={locale} variant="light" className="h-16" />
           <div className="text-end">
             <p className="text-lg font-bold text-navy">{ar ? "عرض سعر" : "Quotation"}</p>
             <p className="num text-ink-500">{doc?.docNumber ?? (ar ? "مسودة — لم يُرسل" : "Draft — not sent")}</p>

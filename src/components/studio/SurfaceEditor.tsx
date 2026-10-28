@@ -6,6 +6,7 @@ import type Konva from "konva";
 import type { DesignElement, SurfaceDoc } from "@/design/document";
 import { isOutsideSafeArea } from "@/design/document";
 import { drawElement, type ImageMap } from "@/design/render";
+import { ICONS } from "@/design/icons";
 import type { SurfaceSpec } from "@/packaging/types";
 
 export interface SurfaceEditorProps {
@@ -73,6 +74,7 @@ export default function SurfaceEditor(p: SurfaceEditorProps) {
 
   const selected = p.surface.elements.find((e) => e.id === p.selectedId);
   const selectedOutside = selected ? isOutsideSafeArea(selected, p.spec, p.safeMargin) : false;
+  const freeAspect = selected?.type === "icon" && ICONS[selected.icon].shape === true;
 
   function snapPos(xmm: number, ymm: number) {
     let x = xmm;
@@ -110,9 +112,9 @@ export default function SurfaceEditor(p: SurfaceEditorProps) {
         <Layer>
           <Group x={ox} y={oy}>
             {/* board */}
-            <Rect name="surface-bg" width={p.spec.w * s} height={p.spec.h * s} fill={p.surface.background ?? p.materialColor} shadowColor="#000000" shadowOpacity={0.6} shadowBlur={30} shadowOffsetY={10} />
+            <Rect name="surface-bg" width={p.spec.w * s} height={p.spec.h * s} fill={p.surface.background ?? p.materialColor} shadowColor="#1d2235" shadowOpacity={0.18} shadowBlur={28} shadowOffsetY={10} />
             {gridLines.map((pts, i) => (
-              <Line key={i} points={pts} stroke="#FFEDD7" opacity={0.08} strokeWidth={1} listening={false} />
+              <Line key={i} points={pts} stroke="#2F357C" opacity={0.08} strokeWidth={1} listening={false} />
             ))}
             {/* artwork (clipped to the printable surface) */}
             <Group clipX={0} clipY={0} clipWidth={p.spec.w * s} clipHeight={p.spec.h * s}>
@@ -158,13 +160,15 @@ export default function SurfaceEditor(p: SurfaceEditorProps) {
                   onTransformEnd={(e) => {
                     const n = e.target;
                     const k = Math.abs(n.scaleX());
+                    // shapes may be stretched on one axis; everything else scales uniformly
+                    const ky = el.type === "icon" && ICONS[el.icon].shape ? Math.abs(n.scaleY()) : k;
                     n.scaleX(1);
                     n.scaleY(1);
                     const patch: Partial<DesignElement> = {
                       x: n.x() / s,
                       y: n.y() / s,
                       width: Math.max(1, el.width * k),
-                      height: Math.max(1, el.height * k),
+                      height: Math.max(1, el.height * ky),
                       rotation: Math.round(n.rotation() * 10) / 10,
                     };
                     if (el.type === "text") (patch as Partial<typeof el>).fontSizeMm = Math.max(1, el.fontSizeMm * k);
@@ -174,22 +178,22 @@ export default function SurfaceEditor(p: SurfaceEditorProps) {
               ))}
             </Group>
             {/* safe area + edge */}
-            <Rect x={p.safeMargin * s} y={p.safeMargin * s} width={(p.spec.w - p.safeMargin * 2) * s} height={(p.spec.h - p.safeMargin * 2) * s} stroke="#DC5000" strokeWidth={1} dash={[6, 5]} listening={false} />
+            <Rect x={p.safeMargin * s} y={p.safeMargin * s} width={(p.spec.w - p.safeMargin * 2) * s} height={(p.spec.h - p.safeMargin * 2) * s} stroke="#EA5B32" strokeWidth={1} dash={[6, 5]} listening={false} />
             <Rect width={p.spec.w * s} height={p.spec.h * s} stroke="#1d6fd6" strokeWidth={1.2} dash={[10, 6]} listening={false} />
             {/* centre guides */}
-            <Line points={[(p.spec.w / 2) * s, -8, (p.spec.w / 2) * s, 0]} stroke="#FFEDD7" opacity={0.5} listening={false} />
-            <Line points={[-8, (p.spec.h / 2) * s, 0, (p.spec.h / 2) * s]} stroke="#FFEDD7" opacity={0.5} listening={false} />
+            <Line points={[(p.spec.w / 2) * s, -8, (p.spec.w / 2) * s, 0]} stroke="#2F357C" opacity={0.45} listening={false} />
+            <Line points={[-8, (p.spec.h / 2) * s, 0, (p.spec.h / 2) * s]} stroke="#2F357C" opacity={0.45} listening={false} />
           </Group>
           <Transformer
             ref={trRef}
-            keepRatio
+            keepRatio={!freeAspect}
             rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
             rotationSnapTolerance={4}
-            enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+            enabledAnchors={freeAspect ? ["top-left", "top-right", "bottom-left", "bottom-right", "middle-left", "middle-right", "top-center", "bottom-center"] : ["top-left", "top-right", "bottom-left", "bottom-right"]}
             anchorSize={10}
             anchorCornerRadius={5}
-            anchorStroke={selectedOutside ? "#ff7b6b" : "#FFEDD7"}
-            borderStroke={selectedOutside ? "#ff7b6b" : "#DC5000"}
+            anchorStroke={selectedOutside ? "#c53030" : "#2F357C"}
+            borderStroke={selectedOutside ? "#c53030" : "#EA5B32"}
             borderStrokeWidth={1.5}
             boundBoxFunc={(oldBox, newBox) => (newBox.width < 8 || newBox.height < 8 ? oldBox : newBox)}
           />

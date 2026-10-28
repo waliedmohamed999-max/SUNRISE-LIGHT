@@ -1,6 +1,7 @@
 import type { QuotationItem } from "@prisma/client";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
+import { COATING_LABELS, FINISH_LABELS, type Coating, type Finish } from "@/design/document";
 
 interface Snapshot {
   template: { nameAr: string; nameEn: string; version: number; dielineValidated: boolean };
@@ -8,7 +9,8 @@ interface Snapshot {
   material: { nameAr: string; nameEn: string; factoryApproved: boolean } | null;
   printOption: string | null;
   finishing: { nameAr: string; nameEn: string }[];
-  surfaces: Record<string, { background: string | null; elements: number }>;
+  surfaces: Record<string, { background: string | null; elements: number; finishes?: string[]; coating?: string }>;
+  interior?: string | null;
 }
 
 /** Frozen specification of a quotation item, as submitted. */
@@ -24,6 +26,15 @@ export function SpecList({ item, locale }: { item: QuotationItem; locale: Locale
     [t.quote.quantity, <span key="q" className="num">{item.quantity.toLocaleString("en")}</span>],
     [t.quote.printing, <span key="pr" dir="auto">{item.printingRequirements || "—"}</span>],
     [t.quote.finishing, s.finishing.map((f) => (ar ? f.nameAr : f.nameEn)).join("، ") || "—"],
+    [
+      ar ? "تشطيبات العناصر" : "Element finishes",
+      [...new Set(Object.values(s.surfaces ?? {}).flatMap((x) => x.finishes ?? []))].map((f) => FINISH_LABELS[f as Finish]?.[locale] ?? f).join(ar ? "، " : ", ") || "—",
+    ],
+    [
+      ar ? "طبقة السطح" : "Coating",
+      [...new Set(Object.values(s.surfaces ?? {}).map((x) => x.coating ?? "none").filter((x) => x !== "none"))].map((x) => COATING_LABELS[x as Coating]?.[locale] ?? x).join(ar ? "، " : ", ") || "—",
+    ],
+    [ar ? "لون الداخل" : "Inside colour", s.interior ? <span key="in" className="inline-flex items-center gap-1.5"><span className="size-4 rounded border border-black/10" style={{ background: s.interior }} /><span className="num">{s.interior}</span></span> : "—"],
   ];
   return (
     <dl className="divide-y divide-navy/8 text-sm">

@@ -12,6 +12,7 @@ export interface CatalogTemplate {
   descriptionAr: string;
   descriptionEn: string;
   category: { slug: string; nameAr: string; nameEn: string };
+  industries: string[];
   version: {
     id: string;
     version: number;
@@ -52,9 +53,9 @@ export async function loadCatalog(opts: { includeDisabled?: boolean } = {}) {
       include: {
         category: true,
         currentVersion: { include: { panels: true } },
-        materialRules: { include: { material: { select: { code: true, isAvailable: true } } } },
+        materialRules: { include: { material: { select: { code: true, isAvailable: true, sortOrder: true } } } },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
     db.materialType.findMany({ where: { isAvailable: true }, include: { finishings: { include: { finishing: true } } }, orderBy: { sortOrder: "asc" } }),
     db.finishingOption.findMany({ where: { isAvailable: true }, orderBy: { sortOrder: "asc" } }),
@@ -73,6 +74,7 @@ export async function loadCatalog(opts: { includeDisabled?: boolean } = {}) {
         descriptionAr: t.descriptionAr,
         descriptionEn: t.descriptionEn,
         category: { slug: t.category.slug, nameAr: t.category.nameAr, nameEn: t.category.nameEn },
+        industries: t.industries,
         version: {
           id: v.id,
           version: v.version,
@@ -90,7 +92,11 @@ export async function loadCatalog(opts: { includeDisabled?: boolean } = {}) {
           printOptions: Array.isArray(v.printOptions) ? (v.printOptions as string[]) : [],
           panels: v.panels.map((p) => ({ key: p.key, nameAr: p.nameAr, nameEn: p.nameEn, printable: p.printable })),
         },
-        materialCodes: t.materialRules.filter((r) => r.material.isAvailable).map((r) => r.material.code),
+        // ordered by material sort order, so the default (first) material is the factory's preferred one
+        materialCodes: t.materialRules
+          .filter((r) => r.material.isAvailable)
+          .sort((a, b) => a.material.sortOrder - b.material.sortOrder)
+          .map((r) => r.material.code),
       };
     });
 

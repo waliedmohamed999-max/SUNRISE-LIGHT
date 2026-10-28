@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { getEngine } from "@/packaging/engine";
 import type { Dieline, Dimensions } from "@/packaging/types";
-import { sunMark } from "@/components/three/showcase";
+import { brandLogo, sunMark } from "@/components/three/showcase";
 import { clamp, timeline } from "./scroll";
 import { cartonAt, dimsAt, foldAt, linesAt, printAt, spinAt } from "./story";
 
@@ -118,12 +118,16 @@ function paintSheet(canvas: HTMLCanvasElement, d: Dieline, mode: "kraft" | "prin
     const cx = p.rect.x + p.rect.w / 2;
     const cy = p.rect.y + p.rect.h * 0.5;
     const r = Math.min(p.rect.w, p.rect.h) * 0.15;
-    sunMark(ctx, cx, cy, r, ink);
-    ctx.fillStyle = ink;
-    ctx.font = `500 ${r * 0.62}px Inter, Arial, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("SUNRISE LIGHT", cx, cy + r * 0.95);
+    // drawn in millimetres (like the rest of the sheet) so the panel UVs show it with true proportions
+    const placed = brandLogo(ctx, cx, cy, p.rect.w * 0.62, mode === "kraft" ? "light" : "dark");
+    if (!placed) {
+      sunMark(ctx, cx, cy, r, ink);
+      ctx.fillStyle = ink;
+      ctx.font = `500 ${r * 0.62}px Inter, Arial, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("SUNRISE LIGHT", cx, cy + r * 0.95);
+    }
   }
   for (const id of ["right", "left"]) {
     const p = d.panels.find((x) => x.id === id)!;

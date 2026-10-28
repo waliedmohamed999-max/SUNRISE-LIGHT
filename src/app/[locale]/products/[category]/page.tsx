@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
-import { TemplateGlyph } from "@/components/studio/panels";
+import { TemplateGlyph } from "@/components/studio/TemplateGlyph";
 import { getEngine } from "@/packaging/engine";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: Locale; category: string }> }): Promise<Metadata> {

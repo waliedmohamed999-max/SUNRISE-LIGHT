@@ -58,9 +58,19 @@ export const POST = api(
       dimensionsMm: doc.dimensions,
       material: material ? { code: material.code, nameAr: material.nameAr, nameEn: material.nameEn, thickness: material.thickness, factoryApproved: material.factoryApproved } : null,
       printOption: doc.printOption,
+      interior: doc.interior ?? null,
       finishing: finishings.map((f) => ({ code: f.code, nameAr: f.nameAr, nameEn: f.nameEn })),
       surfaces: Object.fromEntries(
-        SURFACE_KEYS.map((k) => [k, { background: doc.surfaces[k].background, elements: doc.surfaces[k].elements.length, images: doc.surfaces[k].elements.filter((e) => e.type === "image").length }]),
+        SURFACE_KEYS.map((k) => [
+          k,
+          {
+            background: doc.surfaces[k].background,
+            elements: doc.surfaces[k].elements.length,
+            images: doc.surfaces[k].elements.filter((e) => e.type === "image").length,
+            finishes: [...new Set(doc.surfaces[k].elements.map((e) => e.finish ?? "none").filter((x) => x !== "none"))],
+            coating: doc.surfaces[k].coating ?? "none",
+          },
+        ]),
       ),
     };
 

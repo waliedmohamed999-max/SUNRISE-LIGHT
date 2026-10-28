@@ -17,8 +17,12 @@
   --color-cork: #40372e;
   --color-driftwood: #6c5f51;
   --color-cream: #ffedd7;
-  --color-ember: #dc5000;
+  --color-ember: #ea5b32;
   --color-mat: #445231;
+  /* filled-button colours (themeable) */
+  --color-btn: #382416;
+  --color-btn-fg: #ffedd7;
+  --color-btn-hover: #4a3120;
 
   /* Roles */
   --color-paper: #100904;
@@ -34,7 +38,7 @@
   --color-navy-100: #2a1d12;
   --color-ink: #ffedd7;
   --color-ink-500: #b3a08a;
-  --color-sun: #dc5000;
+  --color-sun: #ea5b32;
   --color-sun-600: #ff7a33;
   --color-sun-100: #2a1409;
   --color-gold: #e9b98a;
@@ -66,6 +70,51 @@
       transform: none;
     }
   }
+}
+
+/*
+ * Light workspace (the studio): brand navy #2F357C + logo orange #EA5B32 on white.
+ * Remaps the editorial tokens too (cream = ink, walnut = white) so shared components invert cleanly.
+ */
+.theme-light {
+  --color-paper: #f4f5f9;
+  --color-paper-200: #eceef4;
+  --color-paper-300: #dfe2ec;
+  --color-white: #ffffff;
+  --color-navy: #2f357c;
+  --color-navy-700: #252a63;
+  --color-navy-500: #5a6096;
+  --color-navy-300: #a7abcb;
+  --color-navy-100: #e6e8f3;
+  --color-ink: #1d2235;
+  --color-ink-500: #616781;
+  --color-sun: #ea5b32;
+  --color-sun-600: #d14a22;
+  --color-sun-100: #fdece6;
+  --color-gold: #c98a2e;
+  --color-kraft: #b78b59;
+  --color-ok: #2f855a;
+  --color-warn: #b7791f;
+  --color-danger: #c53030;
+  --color-cream: #1d2235;
+  --color-walnut: #ffffff;
+  --color-bark: #2f357c;
+  --color-cork: #dfe2ec;
+  --color-ember: #ea5b32;
+  --color-btn: #2f357c;
+  --color-btn-fg: #ffffff;
+  --color-btn-hover: #252a63;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  color-scheme: light;
+}
+.theme-light :is(input, select, textarea) {
+  color-scheme: light;
+}
+.theme-light .bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(47 53 124 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(47 53 124 / 0.06) 1px, transparent 1px);
 }
 
 /* Light print palette (quotation documents and printing) */

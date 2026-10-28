@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { StudioContext, type StudioApi, type UploadedAssetInfo } from "./context";
-import { ColorsPanel, DimensionsPanel, InspectorPanel, LayersPanel, MaterialPanel, SummaryPanel, SurfacesPanel, TemplatesPanel, TextPanel, UploadsPanel } from "./panels";
+import { ColorsPanel, DimensionsPanel, ElementsPanel, InspectorPanel, LayersPanel, MaterialPanel, PresetsPanel, SummaryPanel, SurfacesPanel, TemplatesPanel, TextPanel, UploadsPanel } from "./panels";
 import { useI18n } from "@/i18n/client";
 import type { Catalog } from "@/lib/catalog";
 import {
   designDocumentSchema,
   effectiveDpi,
   isOutsideSafeArea,
+  elementBounds,
   MIN_PRINT_DPI,
   newDocument,
   reflowSurfaces,
@@ -21,10 +22,12 @@ import {
   type TextElement,
 } from "@/design/document";
 import { useAssetImages, useDebouncedEffect, useDesignHistory, useFontsReady } from "@/design/hooks";
-import { canvasToBlob, downloadBlob, measureText, renderIsoThumbnail, renderSurfaceCanvases } from "@/design/render";
+import { canvasToBlob, downloadBlob, measureText, renderFinishMaps, renderIsoThumbnail, renderSurfaceCanvases } from "@/design/render";
+import type { FinishMaps } from "@/components/three/BoxModel";
+import { ICONS, type IconKey } from "@/design/icons";
 import { getEngine, hasErrors, validateDimensions } from "@/packaging/engine";
 import { dielineToSvg } from "@/packaging/svg";
-import type { Dimensions, SurfaceKey, ValidationIssue } from "@/packaging/types";
+import { SURFACE_KEYS, type Dimensions, type SurfaceKey, type ValidationIssue } from "@/packaging/types";
 import type { CameraPreset } from "@/components/three/BoxViewer";
 import { fmt } from "@/i18n/dictionaries";
 import {
@@ -37,6 +40,7 @@ import {
   EyeIcon,
   FlatIcon,
   GridIcon,
+  SparkIcon,
   LayersIcon,
   PaletteIcon,
   PenIcon,
@@ -76,8 +80,8 @@ export interface StudioInitial {
   document: DesignDocument;
 }
 
-type View = "2d" | "3d" | "dieline";
-type LeftTab = "templates" | "material" | "colors" | "text" | "uploads" | "layers";
+type View = "split" | "2d" | "3d" | "dieline";
+type LeftTab = "templates" | "presets" | "colors" | "text" | "elements" | "uploads" | "material" | "layers";
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error" | "local";
 
 export default function StudioApp({
@@ -112,7 +116,7 @@ export default function StudioApp({
   const [saveState, setSaveState] = useState<SaveState>(initial ? "saved" : "local");
   const [surfaceKey, setSurfaceKey] = useState<SurfaceKey>("front");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<View>("2d");
+  const [view, setView] = useState<View>("split");
   const [zoom, setZoom] = useState(1);
   const [snap, setSnap] = useState(false);
   const [lidOpen, setLidOpen] = useState(false);
@@ -148,14 +152,53 @@ export default function StudioApp({
 
   /* ── surface canvases shared by 3D textures, dieline and exports ── */
   const canvasesRef = useRef<Record<SurfaceKey, HTMLCanvasElement> | null>(null);
+  const finishRef = useRef<FinishMaps | null>(null);
   const [texVersion, setTexVersion] = useState(0);
+  /** per-face texture versions: only faces whose content changed are re-uploaded to the GPU */
+  const [faceVersions, setFaceVersions] = useState<Partial<Record<SurfaceKey, number>>>({});
+  const faceSigs = useRef<Partial<Record<SurfaceKey, string>>>({});
+  // while dimensions are changing (slider drag) the 3D box resizes with its existing textures;
+  // the faces are re-rendered once the size settles (300 ms after the last change)
+  const lastDims = useRef("");
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [settle, setSettle] = useState(0);
   useEffect(() => {
     const id = requestAnimationFrame(() => {
-      canvasesRef.current = renderSurfaceCanvases(doc, specs, { materialColor, textured, images, maxPx: 1024 }, canvasesRef.current ?? undefined);
+      const dimsKey = `${doc.dimensions.length}x${doc.dimensions.width}x${doc.dimensions.height}`;
+      const resizing = lastDims.current !== "" && dimsKey !== lastDims.current;
+      lastDims.current = dimsKey;
+      if (resizing && canvasesRef.current) {
+        if (settleTimer.current) clearTimeout(settleTimer.current);
+        settleTimer.current = setTimeout(() => setSettle((n) => n + 1), 300);
+        return;
+      }
+      const maxPx = 1024;
+      const shared = `${materialColor}|${textured}|${imagesVersion}|${fontsReady}`;
+      const changed = specs.filter((s) => {
+        const sig = `${s.w}x${s.h}|${shared}|${JSON.stringify(doc.surfaces[s.key])}`;
+        if (faceSigs.current[s.key] === sig && canvasesRef.current?.[s.key]) return false;
+        faceSigs.current[s.key] = sig;
+        return true;
+      });
+      if (!changed.length) return;
+      const fresh = renderSurfaceCanvases(doc, changed, { materialColor, textured, images, maxPx }, canvasesRef.current ?? undefined);
+      canvasesRef.current = { ...(canvasesRef.current ?? {}), ...fresh } as Record<SurfaceKey, HTMLCanvasElement>;
+      const maps = renderFinishMaps(doc, changed, images);
+      const nextMaps: FinishMaps = { ...(finishRef.current ?? {}) };
+      for (const s of changed) {
+        if (maps[s.key]) nextMaps[s.key] = maps[s.key];
+        else delete nextMaps[s.key];
+      }
+      finishRef.current = nextMaps;
+      setFaceVersions((v) => {
+        const n = { ...v };
+        for (const s of changed) n[s.key] = (n[s.key] ?? 0) + 1;
+        return n;
+      });
       setTexVersion((v) => v + 1);
     });
     return () => cancelAnimationFrame(id);
-  }, [doc, specs, materialColor, textured, images, imagesVersion, fontsReady]);
+  }, [doc, specs, materialColor, textured, images, imagesVersion, fontsReady, settle]);
 
   /* ── load local draft / uploads ── */
   useEffect(() => {
@@ -302,6 +345,83 @@ export default function StudioApp({
 
   const centerElement = useCallback((id: string, axis: "x" | "y") => updateElement(id, axis === "x" ? { x: spec.w / 2 } : { y: spec.h / 2 }), [updateElement, spec]);
 
+  /** Snap an element to one of 9 anchor points inside the safe area (col/row: 0 start, 1 centre, 2 end). */
+  const placeElement = useCallback(
+    (id: string, col: 0 | 1 | 2, row: 0 | 1 | 2) => {
+      const el = doc.surfaces[surfaceKey].elements.find((e) => e.id === id);
+      if (!el) return;
+      const b = elementBounds({ ...el, x: 0, y: 0 });
+      const m = template.version.safeMarginMm;
+      const pos = (n: 0 | 1 | 2, size: number, half: number) => (n === 0 ? m + half : n === 1 ? size / 2 : size - m - half);
+      updateElement(id, { x: pos(col, spec.w, (b.x1 - b.x0) / 2), y: pos(row, spec.h, (b.y1 - b.y0) / 2) });
+    },
+    [doc.surfaces, surfaceKey, template, spec, updateElement],
+  );
+
+  /** Copy of an element fitted onto another face, keeping its relative position. */
+  const fitTo = useCallback(
+    (el: DesignElement, from: { w: number; h: number }, to: { w: number; h: number }, id = el.id): DesignElement => {
+      const k = Math.min(1, (to.w * 0.9) / el.width, (to.h * 0.9) / el.height);
+      const next = { ...el, id, x: (el.x / from.w) * to.w, y: (el.y / from.h) * to.h, width: el.width * k, height: el.height * k } as DesignElement;
+      if (next.type === "text") (next as TextElement).fontSizeMm = (el as TextElement).fontSizeMm * k;
+      return next;
+    },
+    [],
+  );
+
+  const moveElementToSurface = useCallback(
+    (id: string, target: SurfaceKey) => {
+      if (target === surfaceKey || !printable(target)) return;
+      const el = doc.surfaces[surfaceKey].elements.find((e) => e.id === id);
+      const to = specs.find((s) => s.key === target);
+      if (!el || !to) return;
+      const moved = fitTo(el, spec, to);
+      update((d) => ({
+        ...d,
+        surfaces: {
+          ...d.surfaces,
+          [surfaceKey]: { ...d.surfaces[surfaceKey], elements: d.surfaces[surfaceKey].elements.filter((e) => e.id !== id) },
+          [target]: { ...d.surfaces[target], elements: [...d.surfaces[target].elements, moved] },
+        },
+      }));
+      setSurfaceKey(target);
+      setTimeout(() => setSelectedId(id), 0);
+    },
+    [surfaceKey, printable, doc.surfaces, specs, spec, fitTo, update],
+  );
+
+  /** Copy the active face's colour, coating and elements onto another face (or all). */
+  const copySurface = useCallback(
+    (target: SurfaceKey | "all") => {
+      const from = doc.surfaces[surfaceKey];
+      update((d) => {
+        const surfaces = { ...d.surfaces };
+        for (const s of specs) {
+          if (s.key === surfaceKey || !printable(s.key) || (target !== "all" && s.key !== target)) continue;
+          surfaces[s.key] = { background: from.background, coating: from.coating, elements: from.elements.map((el) => fitTo(el, spec, s, nanoid(10))) };
+        }
+        return { ...d, surfaces };
+      });
+    },
+    [doc.surfaces, surfaceKey, specs, printable, spec, fitTo, update],
+  );
+
+  const applyElementToAllSurfaces = useCallback(
+    (id: string) => {
+      const el = doc.surfaces[surfaceKey].elements.find((e) => e.id === id);
+      if (!el) return;
+      update((d) => {
+        const surfaces = { ...d.surfaces };
+        for (const s of specs) {
+          if (s.key === surfaceKey || !printable(s.key)) continue;
+          surfaces[s.key] = { ...surfaces[s.key], elements: [...surfaces[s.key].elements, fitTo(el, spec, s, nanoid(10))] };
+        }
+        return { ...d, surfaces };
+      });
+    },
+    [doc.surfaces, surfaceKey, specs, printable, spec, fitTo, update],
+  );
+
   const addText = useCallback(() => {
     if (!printable(surfaceKey)) return;
     const fontSizeMm = Math.round(Math.min(Math.max(Math.min(spec.w, spec.h) * 0.12, 4), 60) * 10) / 10;
@@ -310,8 +430,32 @@ export default function StudioApp({
     const el: TextElement = { id: nanoid(10), type: "text", ...base, color: "#14283F", align: "center", x: spec.w / 2, y: spec.h / 2, width: m.width, height: m.height, rotation: 0 };
     updateSurface(surfaceKey, (els) => [...els, el]);
     setSelectedId(el.id);
-    setView("2d");
+    setView((v) => (v === "2d" || v === "split" ? v : "split"));
   }, [printable, surfaceKey, spec, locale, updateSurface]);
+
+  const addIcon = useCallback(
+    (icon: IconKey, color: string) => {
+      if (!printable(surfaceKey)) return;
+      const shape = ICONS[icon].shape;
+      const side = Math.round(Math.min(spec.w, spec.h) * (shape ? 0.3 : 0.22) * 10) / 10;
+      const el: DesignElement = {
+        id: nanoid(10),
+        type: "icon",
+        icon,
+        color,
+        x: spec.w / 2,
+        y: spec.h / 2,
+        // bands and lines span the face
+        width: icon === "shape-line" || icon === "shape-ribbon" ? spec.w * 0.8 : side,
+        height: icon === "shape-line" ? Math.max(1.5, spec.h * 0.02) : icon === "shape-ribbon" ? side * 0.6 : side,
+        rotation: 0,
+      };
+      updateSurface(surfaceKey, (els) => [...els, el]);
+      setSelectedId(el.id);
+      setView((v) => (v === "2d" || v === "split" ? v : "split"));
+    },
+    [printable, surfaceKey, spec, updateSurface],
+  );
 
   const placeAsset = useCallback(
     (a: UploadedAssetInfo) => {
@@ -334,7 +478,7 @@ export default function StudioApp({
       };
       updateSurface(surfaceKey, (els) => [...els, el]);
       setSelectedId(el.id);
-      setView("2d");
+      setView((v) => (v === "2d" || v === "split" ? v : "split"));
     },
     [printable, surfaceKey, spec, updateSurface],
   );
@@ -581,11 +725,16 @@ export default function StudioApp({
     duplicateElement,
     moveElement,
     centerElement,
+    placeElement,
+    moveElementToSurface,
+    applyElementToAllSurfaces,
+    copySurface,
     uploads,
     uploading,
     uploadError,
     uploadLogo,
     placeAsset,
+    addIcon,
     isLoggedIn,
     requireLogin,
     images,
@@ -594,19 +743,31 @@ export default function StudioApp({
 
   const leftTabs: { key: LeftTab; label: string; Icon: typeof BoxIcon }[] = [
     { key: "templates", label: t.studio.templates, Icon: BoxIcon },
-    { key: "material", label: t.studio.material, Icon: SettingsIcon },
+    { key: "presets", label: locale === "ar" ? "تصاميم جاهزة" : "Ready designs", Icon: SparkIcon },
     { key: "colors", label: t.studio.colors, Icon: PaletteIcon },
     { key: "text", label: t.studio.text, Icon: TextIcon },
+    { key: "elements", label: locale === "ar" ? "العناصر" : "Elements", Icon: GridIcon },
     { key: "uploads", label: t.studio.uploads, Icon: UploadIcon },
+    { key: "material", label: t.studio.material, Icon: SettingsIcon },
     { key: "layers", label: t.studio.layers, Icon: LayersIcon },
   ];
-  const leftPanel = (k: string) =>
-    k === "templates" ? <TemplatesPanel /> : k === "material" ? <MaterialPanel /> : k === "colors" ? <ColorsPanel /> : k === "text" ? <TextPanel /> : k === "uploads" ? <UploadsPanel /> : k === "layers" ? <LayersPanel /> : null;
+  const PANELS: Record<string, () => React.ReactNode> = {
+    templates: () => <TemplatesPanel />,
+    presets: () => <PresetsPanel />,
+    colors: () => <ColorsPanel />,
+    text: () => <TextPanel />,
+    elements: () => <ElementsPanel />,
+    uploads: () => <UploadsPanel />,
+    material: () => <MaterialPanel />,
+    layers: () => <LayersPanel />,
+  };
+  const leftPanel = (k: string) => PANELS[k]?.() ?? null;
 
   const statusText =
     saveState === "saving" ? t.common.saving : saveState === "saved" ? (designId ? t.studio.autosaved : t.common.saved) : saveState === "dirty" ? t.studio.unsaved : saveState === "error" ? t.common.error : t.studio.localDraft;
 
   const views: { key: View; label: string; Icon: typeof BoxIcon }[] = [
+    { key: "split", label: locale === "ar" ? "تحرير + معاينة" : "Edit + preview", Icon: LayersIcon },
     { key: "2d", label: t.studio.view2d, Icon: PenIcon },
     { key: "3d", label: t.studio.view3d, Icon: CubeIcon },
     { key: "dieline", label: t.studio.viewDieline, Icon: FlatIcon },
@@ -614,7 +775,9 @@ export default function StudioApp({
 
   return (
     <StudioContext.Provider value={api}>
-      <div className="flex h-[calc(100dvh-4.5rem)] min-h-[560px] flex-col bg-paper-200/60">
+      {/* white workspace for the studio, its dialogs and toasts */}
+      <div className="theme-light contents">
+      <div className="flex h-[calc(100dvh-4.5rem)] min-h-[560px] flex-col bg-paper">
         {/* ── Top toolbar ── */}
         <div className="flex flex-wrap items-center gap-2 border-b border-navy/8 bg-white px-3 py-2 sm:flex-nowrap">
           <input
@@ -658,6 +821,26 @@ export default function StudioApp({
           </Button>
         </div>
 
+        <StepsBar
+          steps={[
+            { label: locale === "ar" ? "الشكل" : "Shape", done: true, tab: "templates" },
+            { label: locale === "ar" ? "المقاس" : "Size", done: !hasErrors(dimIssues), tab: "templates" },
+            { label: locale === "ar" ? "الألوان" : "Colours", done: SURFACE_KEYS.some((k) => doc.surfaces[k].background), tab: "colors" },
+            { label: locale === "ar" ? "الشعار والنص" : "Logo & text", done: SURFACE_KEYS.some((k) => doc.surfaces[k].elements.length > 0), tab: "uploads" },
+            {
+              label: locale === "ar" ? "التشطيب" : "Finish",
+              done: doc.finishingCodes.length > 0 || SURFACE_KEYS.some((k) => (doc.surfaces[k].coating ?? "none") !== "none" || doc.surfaces[k].elements.some((e) => e.finish && e.finish !== "none")),
+              tab: "material",
+            },
+            { label: locale === "ar" ? "الكمية" : "Quantity", done: !!doc.quantity, tab: "material" },
+          ]}
+          onStep={(tab) => {
+            setLeftTab(tab as LeftTab);
+            setMobileSheet(tab);
+          }}
+          cta={locale === "ar" ? "جاهز؟ اطلب عرض السعر" : "Ready? Request a quote"}
+          onCta={() => void requestQuote()}
+        />
         <div className="flex min-h-0 flex-1">
           {/* ── Left sidebar (desktop) ── */}
           {!focusMode && (
@@ -697,7 +880,7 @@ export default function StudioApp({
                 ))}
               </div>
               <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-sm">
-                {view === "3d" ? (
+                {(view === "3d" || view === "split") && (
                   <>
                     {(["front", "back", "side", "top"] as const).map((p) => (
                       <button key={p} onClick={() => setPreset({ p, n: preset.n + 1 })} className="rounded-full px-2.5 py-1 text-xs font-medium text-ink-500 hover:bg-paper-200 hover:text-navy">
@@ -707,15 +890,16 @@ export default function StudioApp({
                     <ToolButton label={t.studio.cameraReset} onClick={() => setPreset({ p: "iso", n: preset.n + 1 })}>
                       <RotateIcon className="size-4" />
                     </ToolButton>
-                    {engine.boxStyle !== "closed" && (
+                    {(engine.boxStyle === "mailer" || engine.boxStyle === "tuck") && (
                       <button onClick={() => setLidOpen((o) => !o)} className="rounded-full bg-sun-100 px-3 py-1 text-xs font-semibold text-sun-600">
                         {lidOpen ? t.studio.closeLid : t.studio.openLid}
                       </button>
                     )}
                   </>
-                ) : (
+                )}
+                {view !== "3d" && (
                   <>
-                    {view === "2d" && (
+                    {(view === "2d" || view === "split") && (
                       <ToolButton label={t.studio.snap} active={snap} onClick={() => setSnap((s) => !s)}>
                         <GridIcon className="size-4" />
                       </ToolButton>
@@ -734,55 +918,84 @@ export default function StudioApp({
               </div>
             </div>
 
-            <div className="relative m-3 min-h-0 flex-1 overflow-hidden rounded-2xl border border-navy/8 bg-paper bg-grid">
-              {view === "2d" &&
-                (printable(surfaceKey) ? (
-                  <SurfaceEditor
-                    spec={spec}
-                    surface={doc.surfaces[surfaceKey]}
+            <div className={cx("relative m-3 min-h-0 flex-1 gap-3", view === "split" ? "grid grid-rows-2 lg:grid-cols-2 lg:grid-rows-1" : "flex")}>
+              {(view === "2d" || view === "split") && (
+                <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-navy/10 bg-white bg-grid shadow-sm">
+                  {printable(surfaceKey) ? (
+                    <SurfaceEditor
+                      spec={spec}
+                      surface={doc.surfaces[surfaceKey]}
+                      materialColor={materialColor}
+                      safeMargin={template.version.safeMarginMm}
+                      images={images}
+                      imagesVersion={imagesVersion + (fontsReady ? 1000 : 0)}
+                      selectedId={selectedId}
+                      onSelect={setSelectedId}
+                      onChange={updateElement}
+                      snap={snap}
+                      zoom={zoom}
+                      onZoom={setZoom}
+                      labels={{ safe: t.studio.outsideSafe, edge: "" }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-ink-500">{t.studio.notPrintable}</div>
+                  )}
+                  {printable(surfaceKey) && doc.surfaces[surfaceKey].elements.length === 0 && (
+                    <div className="absolute inset-x-3 bottom-3 flex flex-wrap items-center justify-center gap-2 rounded-xl border border-navy/10 bg-white/95 p-2 shadow-sm backdrop-blur">
+                      <span className="px-1 text-[11px] text-ink-500">{locale === "ar" ? "هذا الوجه فارغ — ابدأ بـ:" : "This face is empty — start with:"}</span>
+                      {[
+                        { label: locale === "ar" ? "تصميم جاهز" : "Ready design", tab: "presets" },
+                        { label: locale === "ar" ? "شعارك" : "Your logo", tab: "uploads" },
+                        { label: locale === "ar" ? "نص" : "Text", tab: "text" },
+                        { label: locale === "ar" ? "عناصر" : "Elements", tab: "elements" },
+                        { label: locale === "ar" ? "لون" : "Colour", tab: "colors" },
+                      ].map((b) => (
+                        <button key={b.tab} onClick={() => (setLeftTab(b.tab as LeftTab), setMobileSheet(b.tab))} className="rounded-full border border-navy/15 px-3 py-1 text-[11px] font-medium text-navy hover:border-sun hover:bg-sun-100">
+                          {b.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <span className="pointer-events-none absolute end-3 top-3 rounded-full bg-navy px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                    {spec.label[locale]} · <span className="num">{fmt(t.studio.sizeLabel, { w: Math.round(spec.w), h: Math.round(spec.h) })}</span>
+                  </span>
+                </div>
+              )}
+              {(view === "3d" || view === "split") && (
+                <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-navy/10 bg-paper shadow-sm">
+                  <BoxViewer
+                    className="absolute inset-0"
+                    theme="light"
+                    dims={doc.dimensions}
+                    boxStyle={engine.boxStyle}
+                    canvases={canvasesRef.current}
+                    finishMaps={finishRef.current}
+                    textureVersion={faceVersions}
                     materialColor={materialColor}
-                    safeMargin={template.version.safeMarginMm}
-                    images={images}
-                    imagesVersion={imagesVersion + (fontsReady ? 1000 : 0)}
-                    selectedId={selectedId}
-                    onSelect={setSelectedId}
-                    onChange={updateElement}
-                    snap={snap}
-                    zoom={zoom}
-                    onZoom={setZoom}
-                    labels={{ safe: t.studio.outsideSafe, edge: "" }}
+                    insideColor={doc.interior}
+                    lidOpen={lidOpen}
+                    preset={preset.p}
+                    presetNonce={preset.n}
+                    onFaceClick={(k) => printable(k) && setSurfaceKey(k)}
+                    selectedFace={surfaceKey}
+                    onCanvas={(c) => (glCanvas.current = c)}
+                    fallback={<div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-ink-500">{t.studio.webglFallback}</div>}
                   />
-                ) : (
-                  <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-ink-500">{t.studio.notPrintable}</div>
-                ))}
-              {view === "3d" && (
-                <BoxViewer
-                  className="absolute inset-0"
-                  dims={doc.dimensions}
-                  boxStyle={engine.boxStyle}
-                  canvases={canvasesRef.current}
-                  textureVersion={texVersion}
-                  materialColor={materialColor}
-                  lidOpen={lidOpen}
-                  preset={preset.p}
-                  presetNonce={preset.n}
-                  onCanvas={(c) => (glCanvas.current = c)}
-                  fallback={<div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-ink-500">{t.studio.webglFallback}</div>}
-                />
+                  <span className="pointer-events-none absolute inset-x-0 top-3 mx-auto w-fit rounded-full bg-white/90 px-3 py-1 text-[11px] text-ink-500 shadow-sm">
+                    {locale === "ar" ? "اضغط على أي وجه لتعديله · اسحب للتدوير" : "Click any face to edit it · drag to rotate"}
+                  </span>
+                </div>
               )}
               {view === "dieline" && (
-                <DielineView dieline={dieline} specs={specs} canvases={canvasesRef.current} version={texVersion} materialColor={materialColor} locale={locale} zoom={zoom} />
+                <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-navy/10 bg-white shadow-sm">
+                  <DielineView dieline={dieline} specs={specs} canvases={canvasesRef.current} version={texVersion} materialColor={materialColor} locale={locale} zoom={zoom} />
+                </div>
               )}
 
               <div className="pointer-events-none absolute start-3 bottom-3 flex flex-wrap items-center gap-2">
                 <span className="num rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-navy shadow-sm">
                   {doc.dimensions.length} × {doc.dimensions.width} × {doc.dimensions.height} mm
                 </span>
-                {view === "2d" && (
-                  <span className="rounded-full bg-white/90 px-3 py-1 text-xs text-ink-500 shadow-sm">
-                    {spec.label[locale]} · <span className="num">{fmt(t.studio.sizeLabel, { w: Math.round(spec.w), h: Math.round(spec.h) })}</span>
-                  </span>
-                )}
               </div>
               {focusMode && (
                 <button onClick={() => setFocusMode(false)} className={buttonClass("outline", "sm", "absolute end-3 top-3")}>
@@ -907,6 +1120,7 @@ export default function StudioApp({
           </Alert>
         </div>
       )}
+      </div>
     </StudioContext.Provider>
   );
 }
@@ -959,6 +1173,33 @@ function ExportMenu({ onPng, onSvg, onJson }: { onPng: () => void; onSvg: () => 
           {item(t.studio.exportSvg, onSvg)}
           {item(t.studio.exportJson, onJson)}
         </div>
+      )}
+    </div>
+  );
+}
+
+function StepsBar({ steps, onStep, cta, onCta }: { steps: { label: string; done: boolean; tab: string }[]; onStep: (tab: string) => void; cta: string; onCta: () => void }) {
+  const done = steps.filter((s) => s.done).length;
+  return (
+    <div className="hidden items-center gap-2 border-b border-navy/8 bg-white px-3 py-1.5 lg:flex">
+      <ol className="flex flex-1 items-center gap-1">
+        {steps.map((s, i) => (
+          <li key={s.label} className="flex items-center gap-1">
+            {i > 0 && <span className={cx("h-px w-5", steps[i - 1].done ? "bg-sun" : "bg-navy/15")} />}
+            <button onClick={() => onStep(s.tab)} className={cx("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition", s.done ? "bg-sun-100 text-navy" : "text-ink-500 hover:bg-paper-200")}>
+              <span className={cx("grid size-4 place-items-center rounded-full text-[9px] text-white", s.done ? "bg-sun" : "bg-navy/25")}>{s.done ? "✓" : i + 1}</span>
+              {s.label}
+            </button>
+          </li>
+        ))}
+      </ol>
+      <span className="num text-[11px] text-ink-500">
+        {done}/{steps.length}
+      </span>
+      {done >= steps.length - 1 && (
+        <button onClick={onCta} className="rounded-full bg-sun px-3 py-1 text-[11px] font-semibold text-white">
+          {cta}
+        </button>
       )}
     </div>
   );

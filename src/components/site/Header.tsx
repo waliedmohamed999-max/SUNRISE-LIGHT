@@ -15,6 +15,8 @@ export function Header({ user }: { user: { name: string; isStaff: boolean } | nu
   const base = `/${locale}`;
   // On the homepage the header floats transparently over the 3D film
   const isHome = pathname === base;
+  // the design studio is a white workspace
+  const isStudio = pathname.startsWith(`${base}/studio`);
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -55,13 +57,13 @@ export function Header({ user }: { user: { name: string; isStaff: boolean } | nu
   };
 
   return (
-    <header className={cx("no-print top-0 z-40", isHome ? "fixed inset-x-0 bg-gradient-to-b from-walnut/70 to-transparent" : "sticky bg-walnut/80 backdrop-blur-md")}>
+    <header className={cx("no-print top-0 z-40", isStudio && "theme-light border-b border-navy/10", isHome ? "fixed inset-x-0 bg-gradient-to-b from-walnut/70 to-transparent" : "sticky bg-walnut/80 backdrop-blur-md")}>
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:bg-bark focus:px-3 focus:py-2">
         {t.nav.skip}
       </a>
       <div className="flex h-18 items-center justify-between gap-6 px-4 sm:px-8">
         <Link href={base} aria-label={t.brand.name}>
-          <Logo locale={locale} />
+          <Logo locale={locale} variant={isStudio ? "light" : "dark"} className="h-10 sm:h-12" />
         </Link>
 
         <nav aria-label="primary" className="hidden items-center gap-8 lg:flex">

@@ -76,7 +76,11 @@ export interface DimensionLimits {
   maxHeightMm: number;
 }
 
-export type BoxStyle = "closed" | "mailer" | "tuck";
+/** closed/mailer/tuck have a lid; "open" has no top (trays); "bag" is open with handles. */
+export type BoxStyle = "closed" | "mailer" | "tuck" | "open" | "bag";
+
+/** Styles whose top surface does not exist. */
+export const OPEN_TOP: BoxStyle[] = ["open", "bag"];
 
 export interface PackagingEngine {
   key: string;

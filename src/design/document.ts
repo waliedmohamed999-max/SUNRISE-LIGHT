@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ICON_KEYS } from "./icons";
 import { SURFACE_KEYS, type Dimensions, type SurfaceKey, type SurfaceSpec } from "@/packaging/types";
 
 /**
@@ -13,8 +14,22 @@ export type FontKey = (typeof FONT_KEYS)[number];
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const mm = z.number().finite();
 
+export const FINISHES = ["none", "foil-gold", "foil-silver", "emboss", "deboss", "spot-uv"] as const;
+export type Finish = (typeof FINISHES)[number];
+
+export const FINISH_LABELS: Record<Finish, { ar: string; en: string }> = {
+  none: { ar: "بدون", en: "None" },
+  "foil-gold": { ar: "بصمة ذهبي", en: "Gold foil" },
+  "foil-silver": { ar: "بصمة فضي", en: "Silver foil" },
+  emboss: { ar: "كفراج بارز", en: "Emboss" },
+  deboss: { ar: "كفراج غائر", en: "Deboss" },
+  "spot-uv": { ar: "يو في موضعي", en: "Spot UV" },
+};
+
 const baseElement = z.object({
   id: z.string().min(1).max(40),
+  /** Print finish applied to this element (foil = البصمة, emboss/deboss = الكفراج) */
+  finish: z.enum(FINISHES).optional(),
   x: mm,
   y: mm,
   width: z.number().finite().positive().max(5000),
@@ -41,13 +56,31 @@ export const textElementSchema = baseElement.extend({
   align: z.enum(["start", "center", "end"]),
 });
 
-export const elementSchema = z.discriminatedUnion("type", [imageElementSchema, textElementSchema]);
+export const iconElementSchema = baseElement.extend({
+  type: z.literal("icon"),
+  icon: z.enum(ICON_KEYS),
+  color: hex,
+});
+
+export const elementSchema = z.discriminatedUnion("type", [imageElementSchema, textElementSchema, iconElementSchema]);
 export type DesignElement = z.infer<typeof elementSchema>;
 export type ImageElement = z.infer<typeof imageElementSchema>;
 export type TextElement = z.infer<typeof textElementSchema>;
+export type IconElement = z.infer<typeof iconElementSchema>;
+
+export const COATINGS = ["none", "matte", "gloss", "soft-touch"] as const;
+export type Coating = (typeof COATINGS)[number];
+export const COATING_LABELS: Record<Coating, { ar: string; en: string }> = {
+  none: { ar: "بدون", en: "None" },
+  matte: { ar: "سلوفان مطفي", en: "Matte" },
+  gloss: { ar: "سلوفان لامع", en: "Gloss" },
+  "soft-touch": { ar: "ناعم الملمس", en: "Soft-touch" },
+};
 
 const surfaceSchema = z.object({
   background: hex.nullable(),
+  /** Whole-face lamination / varnish (shown in the 3D preview) */
+  coating: z.enum(COATINGS).optional(),
   elements: z.array(elementSchema).max(60),
 });
 export type SurfaceDoc = z.infer<typeof surfaceSchema>;
@@ -61,6 +94,8 @@ export const designDocumentSchema = z.object({
   finishingCodes: z.array(z.string().max(60)).max(20),
   printOption: z.string().max(20).nullable().default(null),
   quantity: z.number().int().positive().max(10_000_000).nullable().default(null),
+  /** Inside colour of the box (null = unprinted board) */
+  interior: hex.nullable().default(null),
   surfaces: z.object(Object.fromEntries(SURFACE_KEYS.map((k) => [k, surfaceSchema])) as Record<SurfaceKey, typeof surfaceSchema>),
 });
 export type DesignDocument = z.infer<typeof designDocumentSchema>;
@@ -83,6 +118,7 @@ export function newDocument(args: {
     materialCode: args.materialCode,
     finishingCodes: [],
     printOption: null,
+    interior: null,
     quantity: null,
     surfaces: emptySurfaces(),
   };

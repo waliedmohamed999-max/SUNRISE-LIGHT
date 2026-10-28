@@ -1,12 +1,23 @@
 import { shippingCarton } from "./templates/shipping-carton";
 import { mailerBox } from "./templates/mailer-box";
 import { foldingCarton } from "./templates/folding-carton";
+import { pizzaBox } from "./templates/pizza-box";
+import { paperBag } from "./templates/paper-bag";
+import { foodTray } from "./templates/food-tray";
+import { clamshell, drawerBox, straightTuck, telescopeBox } from "./templates/more-engines";
 import type { DimensionLimits, Dimensions, PackagingEngine, ValidationIssue } from "./types";
 
 export const ENGINES: Record<string, PackagingEngine> = {
   [shippingCarton.key]: shippingCarton,
   [mailerBox.key]: mailerBox,
   [foldingCarton.key]: foldingCarton,
+  [pizzaBox.key]: pizzaBox,
+  [paperBag.key]: paperBag,
+  [foodTray.key]: foodTray,
+  [straightTuck.key]: straightTuck,
+  [telescopeBox.key]: telescopeBox,
+  [drawerBox.key]: drawerBox,
+  [clamshell.key]: clamshell,
 };
 
 export function getEngine(key: string): PackagingEngine {

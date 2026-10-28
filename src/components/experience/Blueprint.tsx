@@ -63,7 +63,7 @@ export function Blueprint() {
             x2={r(c[1][0])}
             y2={r(c[1][1])}
             pathLength={kind === "cut" ? 1 : undefined}
-            stroke={kind === "cut" ? "#E0601A" : "#FFEDD7"}
+            stroke={kind === "cut" ? "#EA5B32" : "#FFEDD7"}
             strokeOpacity={kind === "cut" ? 0.95 : 0.55}
             strokeWidth={kind === "cut" ? 1.6 : 1}
             strokeDasharray={kind === "cut" ? "1" : "6 5"}
@@ -80,7 +80,7 @@ export function Blueprint() {
       </g>
       <g data-dots style={{ opacity: 0 }}>
         {vertices.map((p, i) => (
-          <circle key={i} cx={r(p[0])} cy={r(p[1])} r={3.2} fill="#E0601A" />
+          <circle key={i} cx={r(p[0])} cy={r(p[1])} r={3.2} fill="#EA5B32" />
         ))}
       </g>
       <text

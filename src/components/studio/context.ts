@@ -44,11 +44,16 @@ export interface StudioApi {
   duplicateElement: (id: string) => void;
   moveElement: (id: string, dir: 1 | -1) => void;
   centerElement: (id: string, axis: "x" | "y") => void;
+  placeElement: (id: string, col: 0 | 1 | 2, row: 0 | 1 | 2) => void;
+  moveElementToSurface: (id: string, target: SurfaceKey) => void;
+  applyElementToAllSurfaces: (id: string) => void;
+  copySurface: (target: SurfaceKey | "all") => void;
   uploads: UploadedAssetInfo[];
   uploading: boolean;
   uploadError: string | null;
   uploadLogo: (file: File) => void;
   placeAsset: (a: UploadedAssetInfo) => void;
+  addIcon: (icon: import("@/design/icons").IconKey, color: string) => void;
   isLoggedIn: boolean;
   requireLogin: () => void;
   images: ImageMap;

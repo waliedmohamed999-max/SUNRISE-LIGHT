@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { Alert, Badge, Button, Card, cx, Field, inputClass, Spinner } from "@/components/ui";
-import { TemplateGlyph } from "@/components/studio/panels";
+import { TemplateGlyph } from "@/components/studio/TemplateGlyph";
+import { INDUSTRIES } from "@/packaging/industries";
 
 interface Initial {
   id: string;
@@ -20,6 +21,7 @@ interface Initial {
   dielineValidated: boolean;
   panels: { key: string; name: string; printable: boolean }[];
   materialIds: string[];
+  industries: string[];
 }
 
 export function TemplateEditor({
@@ -58,6 +60,7 @@ export function TemplateEditor({
         dielineValidated: s.dielineValidated,
         printablePanels: s.panels.filter((p) => p.printable).map((p) => p.key),
         materialIds: s.materialIds,
+        industries: s.industries,
       }),
     });
     const j = await res.json().catch(() => ({}));
@@ -147,6 +150,20 @@ export function TemplateEditor({
                   {p.name}
                 </label>
               ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium text-ink">{locale === "ar" ? "القطاعات" : "Industries"}</p>
+            <div className="flex flex-wrap gap-2">
+              {INDUSTRIES.map((i) => {
+                const on = s.industries.includes(i.key);
+                return (
+                  <label key={i.key} className={cx("cursor-pointer rounded-full border px-3 py-1 text-xs", on ? "border-navy bg-navy text-white" : "border-navy/15")}>
+                    <input type="checkbox" className="sr-only" checked={on} onChange={() => setS({ ...s, industries: on ? s.industries.filter((x) => x !== i.key) : [...s.industries, i.key] })} />
+                    {locale === "ar" ? i.ar : i.en}
+                  </label>
+                );
+              })}
             </div>
           </div>
           <div>

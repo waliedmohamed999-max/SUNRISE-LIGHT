@@ -119,6 +119,9 @@ model PackagingTemplate {
   descriptionAr    String                 @default("")
   descriptionEn    String                 @default("")
   isEnabled        Boolean                @default(true)
+  /// Industry tags (restaurants, perfumes, gifts …) used to filter the catalogue
+  industries       String[]               @default([])
+  sortOrder        Int                    @default(0)
   currentVersionId String?                @unique
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt

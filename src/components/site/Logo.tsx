@@ -1,33 +1,29 @@
+import Image from "next/image";
 import { cx } from "@/components/ui";
 
-/**
- * Temporary logo direction: a rising sun behind an isometric packaging box.
- * Replace with the approved official logo when provided (keep the same component API).
+/*
+ * Official Sunrise Light logo (source: brand/logo-original.png).
+ * Web variants in /public/brand are derived from it (scratchpad script logo.mjs):
+ *   logo.png       — original colours, for light backgrounds (documents, print)
+ *   logo-dark.png  — navy lettering in cream, for the dark site
+ *   mark.png       — the orange "S" mark alone
  */
+const FULL = { w: 1355, h: 511 };
+const MARK = { w: 335, h: 507 };
+
 export function LogoMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 48 48" className={cx("size-9", className)} aria-hidden>
-      <g stroke="#DC5000" strokeWidth="2.2" strokeLinecap="round">
-        <path d="M24 4.5v4.5M10.5 10.5l3.2 3.2M37.5 10.5l-3.2 3.2M4.5 22h4.3M39.2 22h4.3" />
-      </g>
-      <path d="M12.5 23a11.5 11.5 0 0 1 23 0z" fill="#DC5000" />
-      <path d="M24 18.5 38.5 25.5 24 32.5 9.5 25.5z" fill="#FFEDD7" />
-      <path d="M9.5 25.5 24 32.5v13L9.5 38.5z" fill="#C79A6B" />
-      <path d="M38.5 25.5 24 32.5v13l14.5-7z" fill="#8A6440" />
-    </svg>
-  );
+  return <Image src="/brand/mark.png" alt="" width={MARK.w} height={MARK.h} className={cx("h-10 w-auto self-start", className)} priority />;
 }
 
-export function Logo({ locale, className }: { locale: "ar" | "en"; inverted?: boolean; className?: string }) {
-  const primary = locale === "ar" ? "ضوء الشروق" : "SUNRISE LIGHT";
-  const secondary = locale === "ar" ? "SUNRISE LIGHT" : "مصنع ضوء الشروق";
+export function Logo({ locale, variant = "dark", className }: { locale: "ar" | "en"; variant?: "dark" | "light"; className?: string }) {
   return (
-    <span className={cx("flex items-center gap-2.5", className)}>
-      <LogoMark />
-      <span className="flex flex-col leading-none">
-        <span className="text-[15px] font-medium text-navy">{primary}</span>
-        <span className="mt-1 text-[10px] font-medium tracking-[0.18em] text-navy/50">{secondary}</span>
-      </span>
-    </span>
+    <Image
+      src={variant === "light" ? "/brand/logo.png" : "/brand/logo-dark.png"}
+      alt={locale === "ar" ? "مصنع ضوء الشروق للكرتون والتغليف — Sunrise Light" : "Sunrise Light Packaging Factory — مصنع ضوء الشروق"}
+      width={FULL.w}
+      height={FULL.h}
+      className={cx("h-11 w-auto", className)}
+      priority
+    />
   );
 }

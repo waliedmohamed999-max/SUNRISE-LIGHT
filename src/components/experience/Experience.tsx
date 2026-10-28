@@ -10,7 +10,7 @@ import { ScrollDriver, useTimelineStyler } from "./ScrollDriver";
 import { Chapter, DimensionCounter, KineticText, useHorizontalScrub } from "./Overlays";
 import { Blueprint } from "./Blueprint";
 import { CH, CINEMA_SCREENS, window4 } from "./scroll";
-import { featureAt, lightAt } from "./story";
+import { featureAt, finishStageAt, lightAt } from "./story";
 
 const ExperienceScene = dynamic(() => import("./ExperienceScene"), { ssr: false });
 
@@ -75,6 +75,56 @@ function FeaturePanels() {
         <div key={f.formula} ref={(el) => void (formula.current[i] = el)} className="pointer-events-none absolute end-4 bottom-20 hidden text-end sm:end-8 sm:block" style={{ opacity: 0, visibility: "hidden" }}>
           <span className="eyebrow block text-[11px] font-medium text-cream/55">{f.label}</span>
           <span className="serif num mt-2 block text-[34px] text-cream lg:text-[44px]">{f.formula}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Finishes lab overlay: heading, stage indicator and the active finish's description. */
+function FinishStages() {
+  const { t } = useI18n();
+  const st = t.story;
+  const blocks = useRef<(HTMLDivElement | null)[]>([]);
+  const tabs = useRef<(HTMLSpanElement | null)[]>([]);
+  useTimelineStyler((s) => {
+    const { span } = finishStageAt(s);
+    st.finishStages.forEach((_, i) => {
+      const a = CH.finish[0] + i * span;
+      const o = window4(s, a + 0.05, a + 0.25, a + span - 0.2, a + span);
+      const el = blocks.current[i];
+      if (el) {
+        el.style.opacity = String(o);
+        el.style.filter = o > 0.99 ? "none" : `blur(${(1 - o) * 10}px)`;
+        el.style.visibility = o < 0.01 ? "hidden" : "visible";
+      }
+      const tab = tabs.current[i];
+      if (tab) tab.style.opacity = String(0.35 + 0.65 * o);
+    });
+  });
+  return (
+    <>
+      <Chapter range={[CH.finish[0] + 0.05, CH.finish[0] + 0.35, CH.finish[1] - 0.3, CH.finish[1]]} className="inset-x-4 top-[14vh] flex flex-wrap items-end justify-between gap-6 sm:inset-x-8">
+        <div>
+          <p className="eyebrow text-xs font-medium text-cream/60">{st.finishEyebrow}</p>
+          <h2 className={cx(display, "mt-4 text-[41px] sm:text-[51px]")}>{st.finishTitle}</h2>
+        </div>
+        <div className="flex gap-6">
+          {st.finishStages.map((f, i) => (
+            <span key={f.title} ref={(el) => void (tabs.current[i] = el)} className="flex items-center gap-2 text-xs font-medium text-cream" style={{ opacity: 0.35 }}>
+              <span className="serif num text-sm">{String(i + 1).padStart(2, "0")}</span>
+              {f.title}
+            </span>
+          ))}
+        </div>
+      </Chapter>
+      {st.finishStages.map((f, i) => (
+        <div key={f.title} ref={(el) => void (blocks.current[i] = el)} className="pointer-events-none absolute inset-x-4 bottom-20 grid gap-4 sm:inset-x-8 md:grid-cols-[1fr_1fr] md:items-end" style={{ opacity: 0, visibility: "hidden" }}>
+          <p className="display text-[51px] leading-[0.9] text-cream sm:text-[72px]">{f.title}</p>
+          <div className="md:text-end">
+            <p className="eyebrow text-[11px] font-medium text-ember">{f.tag}</p>
+            <p className="mt-3 text-[15px] leading-relaxed text-cream/80 md:ms-auto md:max-w-md">{f.body}</p>
+          </div>
         </div>
       ))}
     </>
@@ -170,13 +220,16 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
           </ul>
         </Chapter>
 
+        {/* 4b — finishes lab (foil, emboss, spot UV) */}
+        <FinishStages />
+
         {/* 5 — corrugated macro */}
-        <Chapter range={[6.6, 6.95, 7.45, 7.8]} className="start-4 top-[16vh] max-w-sm sm:start-8">
+        <Chapter range={[8.7, 9.05, 9.55, 9.9]} className="start-4 top-[16vh] max-w-sm sm:start-8">
           <p className="eyebrow text-xs font-medium text-cream/60">{st.macroEyebrow}</p>
           <h2 className={cx(display, "mt-4 text-[41px] sm:text-[51px]")}>{st.macroTitle}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-cream/80">{st.macroBody}</p>
         </Chapter>
-        <Chapter range={[6.75, 7.05, 7.45, 7.8]} className="end-4 bottom-20 sm:end-8">
+        <Chapter range={[8.85, 9.15, 9.55, 9.9]} className="end-4 bottom-20 sm:end-8">
           <ol className="space-y-2">
             {st.macroParts.map((p, i) => (
               <li key={p} className="flex items-center justify-end gap-3 text-xs font-medium text-cream">
@@ -191,12 +244,12 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
         <FeaturePanels />
 
         {/* 7 — family */}
-        <Chapter range={[10.7, 11.1, 11.8, 12.1]} className="inset-x-0 top-[13vh] px-4 text-center">
+        <Chapter range={[12.8, 13.2, 13.9, 14.2]} className="inset-x-0 top-[13vh] px-4 text-center">
           <p className="eyebrow text-xs font-medium text-cream/60">{st.familyEyebrow}</p>
           <h2 className={cx(display, "mt-4 text-[41px] sm:text-[64px]")}>{st.familyTitle}</h2>
         </Chapter>
-        <Chapter range={[10.9, 11.25, 11.8, 12.1]} className="inset-x-4 bottom-20 sm:inset-x-8">
-          <ul className="grid grid-cols-2 gap-[18px] md:grid-cols-4">
+        <Chapter range={[13.0, 13.35, 13.9, 14.2]} className="inset-x-4 bottom-20 sm:inset-x-8">
+          <ul className="grid grid-cols-3 gap-[18px] md:grid-cols-6">
             {st.familyItems.map((it, i) => (
               <li key={it} className="border-t border-dashed border-cream/40 pt-3">
                 <span className="serif num text-[13px] text-cream/50">{String(i + 1).padStart(2, "0")}</span>
@@ -207,7 +260,7 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
         </Chapter>
 
         {/* 8 — blueprint */}
-        <Chapter range={[12.1, 12.4, 13.6, 13.95]} className="inset-0 flex flex-col" rise={0}>
+        <Chapter range={[14.2, 14.5, 15.7, 16.05]} className="inset-0 flex flex-col" rise={0}>
           <div className="px-4 pt-24 text-center sm:px-8">
             <p className="eyebrow text-xs font-medium text-cream/60">{st.blueprintEyebrow}</p>
             <h2 className={cx(display, "mt-3 text-[29px] sm:text-[41px]")}>{st.blueprintTitle}</h2>
@@ -220,14 +273,14 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
 
         {/* 9 — giant word on daylight + facts */}
         <div ref={lightLayer} className="absolute inset-0">
-          <Chapter range={[14.0, 14.35, 15.2, 15.6]} className="inset-x-0 top-[22vh] px-4 sm:px-8" rise={0}>
+          <Chapter range={[16.1, 16.45, 17.3, 17.7]} className="inset-x-0 top-[22vh] px-4 sm:px-8" rise={0}>
             <p className="eyebrow mb-2 text-sm font-medium opacity-70 sm:text-base">{st.wordEyebrow}</p>
             <p className="display text-[clamp(56px,13vw,230px)] leading-[0.85] font-semibold tracking-[0.01em] whitespace-nowrap">
-              <KineticText text={st.word} range={[13.95, 14.6]} />
+              <KineticText text={st.word} range={[16.05, 16.7]} />
             </p>
             <p className="mx-auto mt-8 max-w-md text-center text-[15px] leading-relaxed opacity-80 sm:text-[18px]">{st.wordBody}</p>
           </Chapter>
-          <Chapter range={[14.5, 14.85, 15.2, 15.6]} className="inset-x-4 bottom-16 sm:inset-x-8">
+          <Chapter range={[16.6, 16.95, 17.3, 17.7]} className="inset-x-4 bottom-16 sm:inset-x-8">
             <ul className="grid grid-cols-2 gap-[18px] md:grid-cols-4">
               {st.wordFacts.map((f) => (
                 <li key={f.t} className="rounded-[12px] bg-[#e7d5bc]/70 p-5">

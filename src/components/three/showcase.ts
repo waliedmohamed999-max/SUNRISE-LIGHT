@@ -5,7 +5,78 @@ import type { Dimensions, SurfaceKey } from "@/packaging/types";
 
 /* Procedural artwork for showcase objects — Sunrise Light's own mark only, no customer branding. */
 
+/* ───────────── official brand mark (orange "S"), tinted per print colour ───────────── */
+
+let markImg: HTMLImageElement | null = null;
+const lockups: { light?: HTMLImageElement; dark?: HTMLImageElement } = {};
+let markPromise: Promise<void> | null = null;
+/** Resolves once /brand/mark.png is decoded; scenes await this before painting artwork. */
+export function brandMarkReady(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (!markPromise) {
+    const load = (src: string) => {
+      const img = new Image();
+      img.src = src;
+      return img.decode().then(() => img);
+    };
+    markPromise = Promise.all([load("/brand/mark.png"), load("/brand/logo.png"), load("/brand/logo-dark.png")])
+      .then(([m, light, dark]) => {
+        markImg = m;
+        lockups.light = light;
+        lockups.dark = dark;
+      })
+      .catch(() => undefined);
+  }
+  return markPromise;
+}
+
+const tinted = new Map<string, HTMLCanvasElement>();
+function tintedMark(color: string) {
+  if (!markImg) return null;
+  let t = tinted.get(color);
+  if (!t) {
+    t = document.createElement("canvas");
+    t.width = markImg.naturalWidth;
+    t.height = markImg.naturalHeight;
+    const x = t.getContext("2d")!;
+    x.drawImage(markImg, 0, 0);
+    x.globalCompositeOperation = "source-in";
+    x.fillStyle = color;
+    x.fillRect(0, 0, t.width, t.height);
+    tinted.set(color, t);
+  }
+  return t;
+}
+
+/**
+ * Prints the brand mark centred around (cx, cy); r is the visual radius of the old sun symbol,
+ * so callers keep their proportions. Falls back to the sun symbol until the mark has loaded.
+ */
 export function sunMark(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
+  const m = tintedMark(color);
+  if (m) {
+    const h = r * 2.5;
+    const w = (h * m.width) / m.height;
+    ctx.drawImage(m, cx - w / 2, cy - h * 0.74, w, h);
+    return;
+  }
+  legacySunMark(ctx, cx, cy, r, color);
+}
+
+/**
+ * Prints the full official logo lockup centred at (cx, cy), `width` pixels wide.
+ * "light" = original navy/orange (for kraft and light boards); "dark" = cream lettering (dark or printed boards).
+ * Returns false if the logo isn't loaded yet.
+ */
+export function brandLogo(ctx: CanvasRenderingContext2D, cx: number, cy: number, width: number, variant: "light" | "dark") {
+  const img = lockups[variant];
+  if (!img) return false;
+  const h = (width * img.naturalHeight) / img.naturalWidth;
+  ctx.drawImage(img, cx - width / 2, cy - h / 2, width, h);
+  return true;
+}
+
+function legacySunMark(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = r * 0.12;
@@ -63,21 +134,24 @@ export function surfaceCanvases(dims: Dimensions, engineKey: string, paint: (key
   return out;
 }
 
-export type ShowcaseKind = "rsc" | "mailer" | "rte" | "cup" | "print";
+export type ShowcaseKind = "rsc" | "mailer" | "rte" | "cup" | "print" | "pizza" | "bag" | "tray";
 
-export const SHOWCASE_DIMS: Record<Exclude<ShowcaseKind, "cup">, { engine: string; dims: Dimensions; material: string; style: "closed" | "mailer" | "tuck" }> = {
+export const SHOWCASE_DIMS: Record<Exclude<ShowcaseKind, "cup">, { engine: string; dims: Dimensions; material: string; style: "closed" | "mailer" | "tuck" | "open" | "bag" }> = {
   rsc: { engine: "rsc", dims: { length: 400, width: 300, height: 260 }, material: "#B98C5A", style: "closed" },
   mailer: { engine: "mailer", dims: { length: 300, width: 220, height: 90 }, material: "#E8D9C4", style: "mailer" },
   rte: { engine: "rte", dims: { length: 80, width: 60, height: 170 }, material: "#F2E6D6", style: "tuck" },
   print: { engine: "rsc", dims: { length: 300, width: 300, height: 300 }, material: "#FFEDD7", style: "closed" },
+  pizza: { engine: "pizza", dims: { length: 330, width: 330, height: 45 }, material: "#E8D9C4", style: "mailer" },
+  bag: { engine: "bag", dims: { length: 260, width: 120, height: 330 }, material: "#B98C5A", style: "bag" },
+  tray: { engine: "tray", dims: { length: 300, width: 200, height: 80 }, material: "#B98C5A", style: "open" },
 };
 
-export function showcaseCanvases(kind: Exclude<ShowcaseKind, "cup">) {
+export function showcaseCanvases(kind: Exclude<ShowcaseKind, "cup">): Record<SurfaceKey, HTMLCanvasElement> {
   const { engine, dims } = SHOWCASE_DIMS[kind];
   if (kind === "rsc") {
     return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
       grainFill(ctx, w, h, "#B98C5A", 18);
-      if (key === "front" || key === "back") {
+      if ((key === "front" || key === "back") && !brandLogo(ctx, w / 2, h * 0.5, w * 0.62, "light")) {
         sunMark(ctx, w * 0.5, h * 0.52, Math.min(w, h) * 0.12, "#100904");
         label(ctx, "SUNRISE LIGHT", w / 2, h * 0.74, h * 0.06, "#100904");
       }
@@ -104,10 +178,12 @@ export function showcaseCanvases(kind: Exclude<ShowcaseKind, "cup">) {
     return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
       grainFill(ctx, w, h, key === "top" ? "#382416" : "#E8D9C4", key === "top" ? 10 : 6);
       if (key === "top") {
-        sunMark(ctx, w / 2, h * 0.55, h * 0.15, "#DC5000");
-        label(ctx, "SUNRISE LIGHT", w / 2, h * 0.75, h * 0.055, "#FFEDD7");
+        if (!brandLogo(ctx, w / 2, h * 0.5, w * 0.6, "dark")) {
+          sunMark(ctx, w / 2, h * 0.55, h * 0.15, "#EA5B32");
+          label(ctx, "SUNRISE LIGHT", w / 2, h * 0.75, h * 0.055, "#FFEDD7");
+        }
       } else {
-        ctx.fillStyle = "#DC5000";
+        ctx.fillStyle = "#EA5B32";
         ctx.fillRect(0, h * 0.86, w, h * 0.04);
       }
     });
@@ -116,7 +192,7 @@ export function showcaseCanvases(kind: Exclude<ShowcaseKind, "cup">) {
     return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
       grainFill(ctx, w, h, "#F2E6D6", 6);
       if (key === "front" || key === "back") {
-        sunMark(ctx, w / 2, h * 0.3, w * 0.17, "#DC5000");
+        sunMark(ctx, w / 2, h * 0.3, w * 0.17, "#EA5B32");
         ctx.fillStyle = "#100904";
         ctx.fillRect(w * 0.18, h * 0.46, w * 0.64, h * 0.01);
         label(ctx, "No. 01", w / 2, h * 0.53, w * 0.09, "#100904");
@@ -129,10 +205,37 @@ export function showcaseCanvases(kind: Exclude<ShowcaseKind, "cup">) {
       }
     });
   }
+  if (kind === "pizza") {
+    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
+      grainFill(ctx, w, h, key === "top" ? "#C2470C" : "#E8D9C4", 8);
+      if (key === "top") {
+        sunMark(ctx, w / 2, h * 0.5, w * 0.16, "#FFEDD7");
+        label(ctx, "FRESH · HOT", w / 2, h * 0.7, w * 0.05, "#FFEDD7");
+      } else if (key !== "bottom") {
+        ctx.fillStyle = "#C2470C";
+        ctx.fillRect(0, h * 0.7, w, h * 0.3);
+      }
+    });
+  }
+  if (kind === "bag") {
+    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
+      grainFill(ctx, w, h, "#B98C5A", 16);
+      if ((key === "front" || key === "back") && !brandLogo(ctx, w / 2, h * 0.5, w * 0.78, "light")) {
+        sunMark(ctx, w / 2, h * 0.48, w * 0.16, "#100904");
+        label(ctx, "SUNRISE LIGHT", w / 2, h * 0.6, w * 0.06, "#100904");
+      }
+    });
+  }
+  if (kind === "tray") {
+    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
+      grainFill(ctx, w, h, "#B98C5A", 16);
+      if (key === "front") sunMark(ctx, w / 2, h * 0.62, h * 0.26, "#FFEDD7");
+    });
+  }
   // print: full-bleed printed artwork, shows colour + finishing capability
   return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#DC5000");
+    g.addColorStop(0, "#EA5B32");
     g.addColorStop(0.55, "#8F2F05");
     g.addColorStop(1, "#382416");
     ctx.fillStyle = g;
@@ -161,9 +264,9 @@ export function cupCanvas() {
   grainFill(ctx, 1024, 512, "#F4EADB", 6);
   ctx.fillStyle = "#382416";
   ctx.fillRect(0, 0, 1024, 130);
-  ctx.fillStyle = "#DC5000";
+  ctx.fillStyle = "#EA5B32";
   ctx.fillRect(0, 130, 1024, 12);
-  for (const x of [256, 768]) sunMark(ctx, x, 330, 62, "#DC5000");
+  for (const x of [256, 768]) sunMark(ctx, x, 330, 62, "#EA5B32");
   return c;
 }
 

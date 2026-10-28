@@ -106,9 +106,13 @@ export function DimensionAnnotations() {
     if (!g) return;
     g.visible = a > 0.02;
     const d = dimsAt(s);
-    if (l.current) l.current.textContent = `${d.length} mm`;
-    if (w.current) w.current.textContent = `${d.width} mm`;
-    if (h.current) h.current.textContent = `${d.height} mm`;
+    // HTML labels don't inherit 3D visibility, so they fade with the annotations explicitly
+    for (const [ref, v] of [[l, d.length], [w, d.width], [h, d.height]] as const) {
+      if (!ref.current) continue;
+      ref.current.textContent = `${v} mm`;
+      ref.current.style.opacity = String(a);
+      ref.current.style.visibility = a > 0.02 ? "visible" : "hidden";
+    }
     g.traverse((o) => {
       const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
       if (mat && "opacity" in mat) {
@@ -123,9 +127,9 @@ export function DimensionAnnotations() {
   const W = d.width * MM;
   const H = d.height * MM;
   const o = 0.22;
-  const orange = "#E0601A";
+  const orange = "#EA5B32";
   const label = (ref: React.RefObject<HTMLSpanElement | null>) => (
-    <span ref={ref} className="num rounded-full bg-[#E0601A] px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-cream" />
+    <span ref={ref} className="num rounded-full bg-[#EA5B32] px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-cream" />
   );
   return (
     <group ref={group}>

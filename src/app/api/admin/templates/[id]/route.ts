@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { HttpError, requireUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { audit } from "@/lib/audit";
+import { INDUSTRIES } from "@/packaging/industries";
+
+const INDUSTRY_KEYS = INDUSTRIES.map((i) => i.key) as [string, ...string[]];
 
 const mm = z.number().int().min(1).max(5000);
 const schema = z.object({
@@ -18,6 +21,7 @@ const schema = z.object({
   dielineValidated: z.boolean(),
   printablePanels: z.array(z.string().max(20)),
   materialIds: z.array(z.string().max(40)),
+  industries: z.array(z.enum(INDUSTRY_KEYS)).max(20).optional(),
 });
 
 /**
@@ -41,6 +45,7 @@ export const PATCH = api<{ id: string }>(async (req, { params }) => {
       descriptionAr: tplNow.descriptionAr,
       descriptionEn: tplNow.descriptionEn,
       isEnabled: tplNow.isEnabled,
+      industries: tplNow.industries,
       limits: { minLengthMm: v.minLengthMm, maxLengthMm: v.maxLengthMm, minWidthMm: v.minWidthMm, maxWidthMm: v.maxWidthMm, minHeightMm: v.minHeightMm, maxHeightMm: v.maxHeightMm },
       defaults: { length: v.defaultLengthMm, width: v.defaultWidthMm, height: v.defaultHeightMm },
       safeMarginMm: v.safeMarginMm,
@@ -96,7 +101,7 @@ export const PATCH = api<{ id: string }>(async (req, { params }) => {
     }
     await tx.packagingTemplate.update({
       where: { id: tpl.id },
-      data: { nameAr: b.nameAr, nameEn: b.nameEn, descriptionAr: b.descriptionAr, descriptionEn: b.descriptionEn, isEnabled: b.isEnabled, currentVersionId },
+      data: { nameAr: b.nameAr, nameEn: b.nameEn, descriptionAr: b.descriptionAr, descriptionEn: b.descriptionEn, isEnabled: b.isEnabled, currentVersionId, ...(b.industries ? { industries: b.industries } : {}) },
     });
     await tx.templateMaterialRule.deleteMany({ where: { templateId: tpl.id } });
     if (b.materialIds.length) await tx.templateMaterialRule.createMany({ data: b.materialIds.map((materialId) => ({ templateId: tpl.id, materialId })) });

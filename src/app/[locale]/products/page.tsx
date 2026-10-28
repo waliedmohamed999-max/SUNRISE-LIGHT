@@ -5,6 +5,7 @@ import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
 import { Badge, cx, PageHeader } from "@/components/ui";
 import { CategoryIcon } from "@/components/site/CategoryIcon";
+import { INDUSTRIES } from "@/packaging/industries";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: Locale }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -26,6 +27,16 @@ export default async function ProductsPage({ params }: { params: Promise<{ local
     <>
       <PageHeader title={t.pages.productsTitle} body={t.pages.productsBody} crumbs={[{ label: t.common.breadcrumbHome, href: `/${locale}` }, { label: t.nav.products }]} />
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="mb-10">
+          <p className="eyebrow mb-3 text-xs font-medium text-cream/60">{ar ? "تصفّح حسب نشاطك" : "Browse by industry"}</p>
+          <div className="flex flex-wrap gap-2">
+            {INDUSTRIES.map((i) => (
+              <Link key={i.key} href={`/${locale}/studio?industry=${i.key}`} className="rounded-[22.5px] border border-cream/30 px-4 py-2 text-xs font-medium text-cream/85 transition hover:bg-cream hover:text-walnut">
+                {ar ? i.ar : i.en}
+              </Link>
+            ))}
+          </div>
+        </div>
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {categories.map((c) => {
             const active = c.status === "ACTIVE" && c.templates.length > 0;
