@@ -30,6 +30,8 @@ export interface ArtMapping {
   sh: number;
   /** Clockwise rotation applied to the source when it is laid onto the panel */
   rotation: Rotation;
+  /** Curved panel (paper-cup wall): the source rectangle is bent onto an annular sector around (cx, cy) */
+  fan?: { cx: number; cy: number; ri: number; ro: number; a0: number; a1: number };
 }
 
 export type PanelKind = "face" | "flap" | "glue" | "inner";
@@ -76,8 +78,14 @@ export interface DimensionLimits {
   maxHeightMm: number;
 }
 
-/** closed/mailer/tuck have a lid; "open" has no top (trays); "bag" is open with handles. */
-export type BoxStyle = "closed" | "mailer" | "tuck" | "open" | "bag";
+/**
+ * closed/mailer/tuck have a lid; "open" has no top (trays); "bag" is open with handles;
+ * "cup" is a tapered paper cup; "flat" a rectangular print (stickers, wrapping paper); "disc" a round sticker.
+ */
+export type BoxStyle = "closed" | "mailer" | "tuck" | "open" | "bag" | "cup" | "flat" | "disc";
+
+/** Styles with a single printed face and no box body. */
+export const FLAT_STYLES: BoxStyle[] = ["flat", "disc"];
 
 /** Styles whose top surface does not exist. */
 export const OPEN_TOP: BoxStyle[] = ["open", "bag"];
@@ -88,6 +96,8 @@ export interface PackagingEngine {
   geometryRevision: number;
   /** How the 3D preview animates the opening */
   boxStyle: BoxStyle;
+  /** Dimension inputs shown in the studio and their labels (default: length, width, height) */
+  axes?: Partial<Record<keyof Dimensions, { ar: string; en: string }>>;
   surfaces(d: Dimensions): SurfaceSpec[];
   dieline(d: Dimensions): Dieline;
   /** Engine-specific geometric sanity checks (beyond min/max limits) */

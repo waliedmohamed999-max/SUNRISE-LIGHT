@@ -7,7 +7,7 @@ import { STUDIO_FONTS } from "@/design/fonts";
 import { fmt } from "@/i18n/dictionaries";
 import { SURFACE_KEYS, type Dimensions, type SurfaceKey } from "@/packaging/types";
 import { INDUSTRIES } from "@/packaging/industries";
-import { ENGINE_TIPS, sizePresetsFor } from "@/packaging/sizes";
+import { ENGINE_TIPS, formatDims, sizePresetsFor } from "@/packaging/sizes";
 import { TemplateGlyph } from "./TemplateGlyph";
 import { drawIcon, ICONS, ICON_KEYS, type IconKey } from "@/design/icons";
 import { applyPreset, DESIGN_PRESETS, type DesignPreset } from "@/design/presets";
@@ -133,14 +133,19 @@ export function TemplatesPanel() {
 /* ───────────────────────── Dimensions ───────────────────────── */
 
 export function DimensionsPanel() {
-  const { doc, template, applyDims, unit, setUnit, dimIssues, t, locale } = useStudio();
+  const { doc, template, applyDims, unit, setUnit, dimIssues, t, locale, engine } = useStudio();
   const lim = template.version.limits;
   const factor = unit === "cm" ? 10 : 1;
-  const axes = [
-    { k: "length", label: t.studio.length, min: lim.minLengthMm, max: lim.maxLengthMm },
-    { k: "width", label: t.studio.width, min: lim.minWidthMm, max: lim.maxWidthMm },
-    { k: "height", label: t.studio.height, min: lim.minHeightMm, max: lim.maxHeightMm },
-  ] as const;
+  // engines can show fewer axes with their own names (cup: top / bottom diameter, round sticker: diameter)
+  const axes = (
+    [
+      { k: "length", label: t.studio.length, min: lim.minLengthMm, max: lim.maxLengthMm },
+      { k: "width", label: t.studio.width, min: lim.minWidthMm, max: lim.maxWidthMm },
+      { k: "height", label: t.studio.height, min: lim.minHeightMm, max: lim.maxHeightMm },
+    ] as const
+  )
+    .filter((a) => !engine.axes || engine.axes[a.k])
+    .map((a) => ({ ...a, label: engine.axes?.[a.k]?.[locale] ?? a.label }));
   const show = (mm: number) => String(Math.round((mm / factor) * 10) / 10);
   const [draft, setDraft] = useState<Record<string, string>>({});
   useEffect(() => setDraft({}), [doc.dimensions, unit]);
@@ -185,7 +190,7 @@ export function DimensionsPanel() {
               key={sp.en}
               type="button"
               onClick={() => applyDims(dims)}
-              title={`${dims.length} × ${dims.width} × ${dims.height} mm`}
+              title={formatDims(dims, engine.boxStyle)}
               className={cx("rounded-full border px-2.5 py-1 text-[11px]", on ? "border-sun bg-sun-100 text-navy" : "border-navy/15 text-ink-500 hover:border-navy/40 hover:text-navy")}
             >
               {locale === "ar" ? sp.ar : sp.en}
@@ -194,7 +199,7 @@ export function DimensionsPanel() {
         })}
       </div>
       <form
-        className="grid grid-cols-3 gap-2"
+        className={cx("grid gap-2", axes.length === 3 ? "grid-cols-3" : axes.length === 2 ? "grid-cols-2" : "grid-cols-1")}
         onSubmit={(e) => {
           e.preventDefault();
           commit();
@@ -369,7 +374,9 @@ export function MaterialPanel() {
         <div className="space-y-4">
           <PanelTitle>{t.studio.finishing}</PanelTitle>
           {(["surface", "decor", "handles", "structure", "note"] as FinishingGroup[]).map((g) => {
-            const items = finishings.filter((f) => finishingGroup(f.code) === g && (g !== "handles" || engine.boxStyle === "bag"));
+            // box add-ons and handles only make sense on boxes and bags, not on cups, stickers or paper
+            const boxBody = !["cup", "flat", "disc"].includes(engine.boxStyle);
+            const items = finishings.filter((f) => finishingGroup(f.code) === g && (g !== "handles" || engine.boxStyle === "bag") && (g !== "structure" || boxBody));
             if (!items.length) return null;
             const exclusive = g === "surface" || g === "handles";
             return (
@@ -997,15 +1004,14 @@ export function InspectorPanel() {
 /* ───────────────────────── Summary ───────────────────────── */
 
 export function SummaryPanel({ issues }: { issues: { level: string; message: { ar: string; en: string } }[] }) {
-  const { doc, template, material, locale, t, catalog, specs } = useStudio();
-  const { length: L, width: W, height: H } = doc.dimensions;
+  const { doc, template, material, locale, t, catalog, specs, engine } = useStudio();
   const colors = [...new Set(specs.map((s) => doc.surfaces[s.key].background).filter(Boolean))] as string[];
   const elements = specs.reduce((n, s) => n + doc.surfaces[s.key].elements.length, 0);
   const usedFinishes = [...new Set(specs.flatMap((s) => doc.surfaces[s.key].elements.map((e) => e.finish ?? "none")).filter((x) => x !== "none"))] as Finish[];
   const finishing = doc.finishingCodes.map((c) => catalog.finishings.find((f) => f.code === c)).filter(Boolean);
   const rows: [string, React.ReactNode][] = [
     [t.studio.product, locale === "ar" ? template.nameAr : template.nameEn],
-    [t.studio.dimensions, <span key="d" className="num">{`${L} × ${W} × ${H} mm`}</span>],
+    [t.studio.dimensions, <span key="d" className="num">{formatDims(doc.dimensions, engine.boxStyle)}</span>],
     [t.studio.material, material ? (locale === "ar" ? material.nameAr : material.nameEn) : "—"],
     [locale === "ar" ? "الطباعة" : "Printing", doc.printOption ? PRINT_LABELS[doc.printOption]?.[locale] ?? doc.printOption : "—"],
     [t.studio.finishing, finishing.length ? finishing.map((f) => (locale === "ar" ? f!.nameAr : f!.nameEn)).join("، ") : "—"],

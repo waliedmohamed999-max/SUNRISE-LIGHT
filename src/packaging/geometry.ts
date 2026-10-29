@@ -167,6 +167,7 @@ export function finalizeDieline(panels: DielinePanel[], folds: [Pt, Pt][]): Diel
     ...p,
     points: p.points.map(shift),
     rect: { ...p.rect, x: p.rect.x - minX, y: p.rect.y - minY },
+    art: p.art?.fan ? { ...p.art, fan: { ...p.art.fan, cx: p.art.fan.cx - minX, cy: p.art.fan.cy - minY } } : p.art,
   }));
   const movedFolds = folds.map(([a, b]) => [shift(a), shift(b)] as [Pt, Pt]);
   return {

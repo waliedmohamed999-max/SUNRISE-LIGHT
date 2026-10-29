@@ -210,7 +210,119 @@ function Insert({ L, W, H, kind, color }: { L: number; W: number; H: number; kin
   );
 }
 
-export function BoxModel({ dims, boxStyle, canvases, textureVersion, materialColor, lidOpen = false, size = 2.6, finishMaps, insideColor, onFaceClick, selectedFace, addons = [] }: BoxModelProps) {
+/** Tapered paper cup: the front canvas wraps around the wall (u = around, v = bottom → mouth). */
+function CupBody({ dims, canvases, textureVersion, finishMaps, insideColor, materialColor, size = 2.6, onFaceClick, selectedFace }: BoxModelProps) {
+  const k = size / Math.max(dims.length, dims.height);
+  const R = (dims.length / 2) * k;
+  const r = (dims.width / 2) * k;
+  const H = dims.height * k;
+  const v = typeof textureVersion === "number" ? textureVersion : (textureVersion.front ?? 0);
+  const map = useCanvasTexture(canvases?.front, v);
+  const fm = finishMaps?.front;
+  const rough = useCanvasTexture(fm?.rough, v, false);
+  const metal = useCanvasTexture(fm?.metal, v, false);
+  const bump = useCanvasTexture(fm?.bump, v, false);
+  const finished = !!(rough && metal);
+  // the lathe seam (u = 0) starts at +z; a half turn brings the middle of the artwork (u = 0.5) to the front
+  const profile = useMemo(() => [new THREE.Vector2(r, 0), new THREE.Vector2(R, H)], [r, R, H]);
+  const inside = insideColor ?? "#EFE6D8";
+  return (
+    <group>
+      <mesh
+        castShadow
+        rotation={[0, Math.PI, 0]}
+        onClick={onFaceClick ? (e) => (e.stopPropagation(), onFaceClick("front")) : undefined}
+        onPointerOver={onFaceClick ? () => (document.body.style.cursor = "pointer") : undefined}
+        onPointerOut={onFaceClick ? () => (document.body.style.cursor = "") : undefined}
+      >
+        <latheGeometry args={[profile, 96]} />
+        <meshStandardMaterial
+          key={finished ? "finished" : "plain"}
+          map={map ?? undefined}
+          color={map ? "#ffffff" : materialColor}
+          roughness={finished ? 1 : 0.7}
+          metalness={finished ? 1 : 0}
+          roughnessMap={rough ?? undefined}
+          metalnessMap={metal ?? undefined}
+          bumpMap={bump ?? undefined}
+          bumpScale={bump ? 0.9 : 0}
+        />
+      </mesh>
+      <mesh rotation={[0, Math.PI, 0]}>
+        <latheGeometry args={[profile, 96]} />
+        <meshStandardMaterial color={inside} roughness={0.85} side={THREE.BackSide} />
+      </mesh>
+      {/* rolled rim and the recessed base */}
+      <mesh position={[0, H, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[R, Math.max(0.012, size * 0.006), 12, 96]} />
+        <meshStandardMaterial color={inside} roughness={0.6} />
+      </mesh>
+      <mesh position={[0, H * 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[r + (R - r) * 0.04, 64]} />
+        <meshStandardMaterial color={inside} roughness={0.9} />
+      </mesh>
+      {selectedFace === "front" && (
+        <mesh position={[0, H, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[R * 1.01, Math.max(0.008, size * 0.004), 8, 96]} />
+          <meshBasicMaterial color="#EA5B32" />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+/** Flat print standing upright (sticker sheet, wrapping paper) or a round die-cut sticker ("disc"). */
+function FlatBody({ dims, boxStyle, canvases, textureVersion, materialColor, size = 2.6, onFaceClick, selectedFace }: BoxModelProps) {
+  const round = boxStyle === "disc";
+  // a disc reads larger than a sheet of the same height, so it gets a little less of the frame
+  const k = (round ? size * 0.8 : size) / Math.max(dims.length, round ? dims.length : dims.height);
+  const L = dims.length * k;
+  const H = round ? L : dims.height * k;
+  const T = Math.max(0.006, size * 0.004);
+  const v = typeof textureVersion === "number" ? textureVersion : (textureVersion.front ?? 0);
+  const map = useCanvasTexture(canvases?.front, v);
+  const pick = onFaceClick ? { onClick: (e: { stopPropagation: () => void }) => (e.stopPropagation(), onFaceClick("front")) } : {};
+  return (
+    <group position={[0, H / 2 + 0.01, 0]}>
+      {round ? (
+        <mesh castShadow rotation={[Math.PI / 2, Math.PI / 2, 0]} {...pick}>
+          <cylinderGeometry args={[L / 2, L / 2, T, 96]} />
+          {/* side, top cap (front), bottom cap (back) */}
+          <meshStandardMaterial attach="material-0" color="#F4EFE6" roughness={0.6} />
+          <meshStandardMaterial attach="material-1" map={map ?? undefined} color={map ? "#ffffff" : materialColor} roughness={0.45} />
+          <meshStandardMaterial attach="material-2" color="#FAF8F4" roughness={0.8} />
+        </mesh>
+      ) : (
+        <mesh castShadow {...pick}>
+          <boxGeometry args={[L, H, T]} />
+          <meshStandardMaterial attach="material-0" color="#F4EFE6" />
+          <meshStandardMaterial attach="material-1" color="#F4EFE6" />
+          <meshStandardMaterial attach="material-2" color="#F4EFE6" />
+          <meshStandardMaterial attach="material-3" color="#F4EFE6" />
+          <meshStandardMaterial attach="material-4" map={map ?? undefined} color={map ? "#ffffff" : materialColor} roughness={0.5} />
+          <meshStandardMaterial attach="material-5" color="#FAF8F4" roughness={0.8} />
+        </mesh>
+      )}
+      {selectedFace === "front" && !round && <Outline w={L} h={H} />}
+    </group>
+  );
+}
+
+/** Rendered height of the model in scene units, matching each body's own scaling (used to aim the camera). */
+export function modelHeight(dims: BoxModelProps["dims"], boxStyle: BoxModelProps["boxStyle"], size = 2.6) {
+  if (boxStyle === "disc") return size * 0.8;
+  if (boxStyle === "flat") return (size * dims.height) / Math.max(dims.length, dims.height);
+  if (boxStyle === "cup") return (size * dims.height) / Math.max(dims.length, dims.height);
+  return (size * dims.height) / Math.max(dims.length, dims.width, dims.height);
+}
+
+export function BoxModel(props: BoxModelProps) {
+  if (props.boxStyle === "cup") return <CupBody {...props} />;
+  if (props.boxStyle === "flat" || props.boxStyle === "disc") return <FlatBody {...props} />;
+  return <BoxBody {...props} />;
+}
+
+function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidOpen = false, size = 2.6, finishMaps, insideColor, onFaceClick, selectedFace, addons = [] }: BoxModelProps) {
   const openTop = OPEN_TOP.includes(boxStyle);
   const k = size / Math.max(dims.length, dims.width, dims.height);
   const L = dims.length * k;

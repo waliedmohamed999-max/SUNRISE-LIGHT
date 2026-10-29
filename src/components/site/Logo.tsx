@@ -9,7 +9,7 @@ import { cx } from "@/components/ui";
  *   mark.png       — the orange "S" mark alone
  */
 const FULL = { w: 1355, h: 511 };
-const MARK = { w: 335, h: 507 };
+const MARK = { w: 400, h: 539 };
 
 export function LogoMark({ className }: { className?: string }) {
   return <Image src="/brand/mark.png" alt="" width={MARK.w} height={MARK.h} className={cx("h-10 w-auto self-start", className)} priority />;

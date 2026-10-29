@@ -355,6 +355,24 @@ export function drawDieline(
       const spec = specs.find((x) => x.key === p.art!.surface)!;
       const k = src.width / spec.w;
       const { rect } = p;
+      if (p.art.fan) {
+        // curved wall (paper cup): bend the artwork onto the annular sector, strip by strip;
+        // the top of the artwork (cup mouth) lies on the outer radius, the bottom on the inner radius
+        const f = p.art.fan;
+        const N = 160;
+        const da = (f.a1 - f.a0) / N;
+        for (let i = 0; i < N; i++) {
+          const a = f.a0 + da * (i + 0.5);
+          ctx.save();
+          ctx.translate(f.cx * s, f.cy * s);
+          ctx.rotate(a + Math.PI / 2);
+          const w = f.ro * da * s * 1.04;
+          ctx.drawImage(src, (p.art.sx + (p.art.sw * i) / N) * k, p.art.sy * k, (p.art.sw / N) * k, p.art.sh * k, -w / 2, -f.ro * s, w, (f.ro - f.ri) * s);
+          ctx.restore();
+        }
+        ctx.restore();
+        continue;
+      }
       const swapped = p.art.rotation === 90 || p.art.rotation === 270;
       const dw = (swapped ? rect.h : rect.w) * s;
       const dh = (swapped ? rect.w : rect.h) * s;
@@ -402,7 +420,7 @@ export function drawDieline(
 export function renderIsoThumbnail(
   dims: Dimensions,
   canvases: Record<SurfaceKey, HTMLCanvasElement>,
-  opts: { width?: number; height?: number; background?: string } = {},
+  opts: { width?: number; height?: number; background?: string; style?: BoxStyle } = {},
 ): HTMLCanvasElement {
   const W = opts.width ?? 640;
   const H = opts.height ?? 480;
@@ -412,6 +430,8 @@ export function renderIsoThumbnail(
   const ctx = out.getContext("2d")!;
   ctx.fillStyle = opts.background ?? "#F8F6F2";
   ctx.fillRect(0, 0, W, H);
+  if (opts.style === "cup") return cupThumbnail(ctx, dims, canvases.front, W, H), out;
+  if (opts.style === "flat" || opts.style === "disc") return flatThumbnail(ctx, dims, canvases.front, W, H, opts.style === "disc"), out;
 
   const { length: L, width: Wd, height: Ht } = dims;
   const c = Math.cos(Math.PI / 6);
@@ -465,6 +485,74 @@ export function renderIsoThumbnail(
     ctx.fill();
   }
   return out;
+}
+
+/** 2D cup view: the front half of the wrap on a tapered body, with the rim ellipse. */
+function cupThumbnail(ctx: CanvasRenderingContext2D, dims: Dimensions, wrap: HTMLCanvasElement, W: number, H: number) {
+  const k = Math.min((W * 0.6) / dims.length, (H * 0.74) / dims.height);
+  const R = (dims.length / 2) * k, r = (dims.width / 2) * k, h = dims.height * k;
+  const cx = W / 2, top = (H - h) / 2 + R * 0.12, bot = top + h;
+  const eT = R * 0.22, eB = r * 0.22;
+  // ground shadow
+  const g = ctx.createRadialGradient(cx, bot + eB, 2, cx, bot + eB, R * 1.3);
+  g.addColorStop(0, "rgba(20,40,63,0.22)");
+  g.addColorStop(1, "rgba(20,40,63,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - R, top);
+  ctx.lineTo(cx - r, bot);
+  ctx.ellipse(cx, bot, r, eB, 0, Math.PI, 0, true);
+  ctx.lineTo(cx + R, top);
+  ctx.ellipse(cx, top, R, eT, 0, 0, Math.PI, false);
+  ctx.closePath();
+  ctx.clip();
+  // the visible half of the wrap, compressed towards the edges like a cylinder seen from the front
+  const N = 60;
+  for (let i = 0; i < N; i++) {
+    const a0 = -Math.PI / 2 + (Math.PI * i) / N, a1 = -Math.PI / 2 + (Math.PI * (i + 1)) / N;
+    const x0 = Math.sin(a0), x1 = Math.sin(a1);
+    const su = 0.25 + (i / N) * 0.5;
+    ctx.drawImage(wrap, su * wrap.width, 0, (0.5 / N) * wrap.width + 1, wrap.height, cx + x0 * R, top - eT, (x1 - x0) * R + 1, h + eT + eB);
+  }
+  const shade = ctx.createLinearGradient(cx - R, 0, cx + R, 0);
+  shade.addColorStop(0, "rgba(10,20,35,0.35)");
+  shade.addColorStop(0.45, "rgba(255,255,255,0.08)");
+  shade.addColorStop(1, "rgba(10,20,35,0.4)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+  // rim and opening
+  ctx.beginPath();
+  ctx.ellipse(cx, top, R, eT, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "#E9DCC9";
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, R * 0.04);
+  ctx.strokeStyle = "#F4EADB";
+  ctx.stroke();
+}
+
+/** 2D view of a flat print (sheet) or a round sticker, tilted slightly with a soft shadow. */
+function flatThumbnail(ctx: CanvasRenderingContext2D, dims: Dimensions, face: HTMLCanvasElement, W: number, H: number, round: boolean) {
+  const fw = dims.length, fh = round ? dims.length : dims.height;
+  const k = Math.min((W * 0.72) / fw, (H * 0.74) / fh);
+  const w = fw * k, h = fh * k;
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(-0.06);
+  ctx.shadowColor = "rgba(20,40,63,0.28)";
+  ctx.shadowBlur = Math.max(8, w * 0.05);
+  ctx.shadowOffsetY = Math.max(4, h * 0.03);
+  ctx.beginPath();
+  if (round) ctx.arc(0, 0, w / 2, 0, Math.PI * 2);
+  else ctx.rect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.clip();
+  ctx.drawImage(face, -w / 2, -h / 2, w, h);
+  ctx.restore();
 }
 
 export function canvasToBlob(canvas: HTMLCanvasElement, type = "image/png"): Promise<Blob> {

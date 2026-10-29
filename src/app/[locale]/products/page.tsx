@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { loadCatalog } from "@/lib/catalog-data";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
-import { Badge, cx, PageHeader } from "@/components/ui";
-import { CategoryIcon } from "@/components/site/CategoryIcon";
 import { INDUSTRIES } from "@/packaging/industries";
+import { buttonClass } from "@/components/ui";
+import { ProductsExplorer, ProductsHero } from "@/components/experience/ProductsExplorer";
+import { IndustryGrid } from "@/components/experience/IndustryGrid";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: Locale }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -13,58 +14,54 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: L
   return { title: t.pages.productsTitle, description: t.pages.productsBody, alternates: { canonical: `/${locale}/products`, languages: { ar: "/ar/products", en: "/en/products" } } };
 }
 
+/* Products — catalogue explorer in the site's editorial identity: live 3D preview, specs from the factory data, filters. */
 export default async function ProductsPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   const t = getDict(locale);
   const ar = locale === "ar";
-  const categories = await db.packagingCategory.findMany({
-    where: { status: { not: "HIDDEN" } },
-    orderBy: { sortOrder: "asc" },
-    include: { templates: { where: { isEnabled: true }, select: { id: true } } },
-  });
+  const { categories, products, materialCount } = await loadCatalog(locale);
+  const industriesUsed = new Set(products.flatMap((p) => p.industries)).size;
+  // hero composition: a carton, a bag and a premium box when available
+  const showcase = ["shipping-carton", "paper-bag", "perfume-box"].filter((code) => products.some((p) => p.code === code));
 
   return (
-    <>
-      <PageHeader title={t.pages.productsTitle} body={t.pages.productsBody} crumbs={[{ label: t.common.breadcrumbHome, href: `/${locale}` }, { label: t.nav.products }]} />
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="mb-10">
-          <p className="eyebrow mb-3 text-xs font-medium text-cream/60">{ar ? "تصفّح حسب نشاطك" : "Browse by industry"}</p>
-          <div className="flex flex-wrap gap-2">
-            {INDUSTRIES.map((i) => (
-              <Link key={i.key} href={`/${locale}/studio?industry=${i.key}`} className="rounded-[22.5px] border border-cream/30 px-4 py-2 text-xs font-medium text-cream/85 transition hover:bg-cream hover:text-walnut">
-                {ar ? i.ar : i.en}
-              </Link>
-            ))}
+    <div className="text-cream">
+      <ProductsHero
+        title={ar ? "منتجاتنا" : "Our products"}
+        body={t.pages.productsBody}
+        crumbs={[{ label: t.common.breadcrumbHome, href: `/${locale}` }, { label: t.nav.products }]}
+        showcase={showcase.length === 3 ? showcase : products.slice(0, 3).map((p) => p.code)}
+        stats={[
+          { value: products.length, label: ar ? "قالب جاهز للتصميم" : "Ready-to-design templates" },
+          { value: categories.filter((c) => c.active).length, label: ar ? "فئة منتجات" : "Product categories" },
+          { value: Math.min(industriesUsed, INDUSTRIES.length), label: ar ? "نشاط تجاري" : "Industries" },
+          { value: materialCount, label: ar ? "خامة" : "Materials" },
+        ]}
+      />
+      <ProductsExplorer categories={categories} products={products} />
+      <IndustryGrid templates={products.map((p) => ({ code: p.code, engineKey: p.engineKey, name: p.name, industries: p.industries }))} />
+      <section className="relative z-20 bg-walnut">
+        <div className="rule mx-4 sm:mx-8" />
+        <div className="grid gap-8 px-4 py-24 sm:px-8 lg:grid-cols-[1.4fr_1fr] lg:items-end">
+          <div>
+            <p className="eyebrow text-xs font-medium text-cream/60">{ar ? "تغليف مخصص" : "Custom packaging"}</p>
+            <h2 className="display mt-4 text-[41px] leading-[0.9] sm:text-[64px]">{ar ? "منتجك غير موجود؟ نصنعه لك." : "Not in the catalogue? We'll make it."}</h2>
+            <p className="mt-6 max-w-lg text-[15px] leading-relaxed text-cream/60">
+              {ar
+                ? "أرسل لنا المقاسات أو عينة أو فكرة العبوة، ويقترح فريق المصنع الهيكل والخامة المناسبة ويرسل لك عرض السعر."
+                : "Send us dimensions, a sample or just the idea; the factory team will propose the structure and material and send you a quotation."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <Link href={`/${locale}/contact`} className={buttonClass("primary", "md")}>
+              {ar ? "اطلب منتجًا مخصصًا" : "Request a custom product"}
+            </Link>
+            <Link href={`/${locale}/services`} className={buttonClass("outline", "md")}>
+              {t.nav.services}
+            </Link>
           </div>
         </div>
-        <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((c) => {
-            const active = c.status === "ACTIVE" && c.templates.length > 0;
-            return (
-              <li key={c.id}>
-                <Link
-                  href={`/${locale}/products/${c.slug}`}
-                  className={cx(
-                    "flex h-full gap-5 rounded-[var(--radius-card)] border bg-white p-6 transition",
-                    active ? "border-navy/8 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)]" : "border-dashed border-navy/12",
-                  )}
-                >
-                  <span className={cx("grid size-14 shrink-0 place-items-center rounded-2xl", active ? "bg-navy text-sun" : "bg-paper-200 text-navy-300")}>
-                    <CategoryIcon slug={c.slug} className="size-7" />
-                  </span>
-                  <span>
-                    <span className="flex items-center gap-2">
-                      <span className="font-semibold text-navy">{ar ? c.nameAr : c.nameEn}</span>
-                      {!active && <Badge>{t.common.comingSoon}</Badge>}
-                    </span>
-                    <span className="mt-1.5 block text-sm leading-relaxed text-ink-500">{ar ? c.descriptionAr : c.descriptionEn}</span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </>
+      </section>
+    </div>
   );
 }

@@ -27,6 +27,7 @@ import type { FinishMaps } from "@/components/three/BoxModel";
 import { ICONS, type IconKey } from "@/design/icons";
 import type { TextStyle } from "./context";
 import { getEngine, hasErrors, validateDimensions } from "@/packaging/engine";
+import { formatDims } from "@/packaging/sizes";
 import { dielineToSvg } from "@/packaging/svg";
 import { SURFACE_KEYS, type Dimensions, type SurfaceKey, type ValidationIssue } from "@/packaging/types";
 import type { CameraPreset } from "@/components/three/BoxViewer";
@@ -627,7 +628,7 @@ export default function StudioApp({
   async function makeThumbnail(): Promise<string | null> {
     if (!canvasesRef.current) return null;
     try {
-      const iso = renderIsoThumbnail(doc.dimensions, canvasesRef.current, { width: 640, height: 480 });
+      const iso = renderIsoThumbnail(doc.dimensions, canvasesRef.current, { width: 640, height: 480, style: engine.boxStyle });
       const fd = new FormData();
       fd.append("file", await canvasToBlob(iso), "preview.png");
       fd.append("kind", "PREVIEW");
@@ -688,7 +689,7 @@ export default function StudioApp({
     if (view === "3d" && glCanvas.current) {
       downloadBlob(await canvasToBlob(glCanvas.current), `${fileBase}-3d.png`);
     } else if (canvasesRef.current) {
-      downloadBlob(await canvasToBlob(renderIsoThumbnail(doc.dimensions, canvasesRef.current, { width: 1600, height: 1200 })), `${fileBase}.png`);
+      downloadBlob(await canvasToBlob(renderIsoThumbnail(doc.dimensions, canvasesRef.current, { width: 1600, height: 1200, style: engine.boxStyle })), `${fileBase}.png`);
     }
   }
 
@@ -1053,7 +1054,7 @@ export default function StudioApp({
 
               <div className="pointer-events-none absolute start-3 bottom-3 flex flex-wrap items-center gap-2">
                 <span className="num rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-navy shadow-sm">
-                  {doc.dimensions.length} × {doc.dimensions.width} × {doc.dimensions.height} mm
+                  {formatDims(doc.dimensions, engine.boxStyle)}
                 </span>
               </div>
               {focusMode && (

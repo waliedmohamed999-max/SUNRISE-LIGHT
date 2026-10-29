@@ -66,7 +66,8 @@ describe("all engines", () => {
 
     it(`${engine.key}: rotated panels swap width and height correctly`, () => {
       const d = engine.dieline(D);
-      for (const p of d.panels.filter((x) => x.art)) {
+      // curved panels (cup wall) are bounded by their fan, not by the art rectangle — covered in print-engines.test.ts
+      for (const p of d.panels.filter((x) => x.art && !x.art.fan)) {
         const swapped = p.art!.rotation === 90 || p.art!.rotation === 270;
         expect(close(swapped ? p.rect.w : p.rect.h, p.art!.sh)).toBe(true);
         expect(close(swapped ? p.rect.h : p.rect.w, p.art!.sw)).toBe(true);
@@ -75,7 +76,8 @@ describe("all engines", () => {
 
     it(`${engine.key}: produces non-degenerate cut lines and a valid SVG`, () => {
       const d = engine.dieline(D);
-      expect(d.cuts.length).toBeGreaterThan(4);
+      // a plain rectangle (flat sheet) has exactly four cut edges
+      expect(d.cuts.length).toBeGreaterThanOrEqual(4);
       expect(d.cuts.every((c) => segLen(c) > 0)).toBe(true);
       const svg = dielineToSvg(d, { locale: "ar" });
       expect(svg).toContain("<svg");

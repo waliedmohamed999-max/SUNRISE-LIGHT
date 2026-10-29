@@ -39,7 +39,7 @@ export const DesignPreview = forwardRef<DesignPreviewHandle, { doc: DesignDocume
     }, [doc, specs, materialColor, textured, images, version, fonts]);
 
     useImperativeHandle(ref, () => ({
-      isoCanvas: () => (canvases.current ? renderIsoThumbnail(doc.dimensions, canvases.current, { width: 960, height: 720 }) : null),
+      isoCanvas: () => (canvases.current ? renderIsoThumbnail(doc.dimensions, canvases.current, { width: 960, height: 720, style: engine.boxStyle }) : null),
     }));
 
     return (

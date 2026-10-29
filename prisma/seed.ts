@@ -26,6 +26,8 @@ const CATEGORIES = [
   { slug: "paper-cups", nameAr: "الأكواب الورقية", nameEn: "Paper Cups", status: "COMING_SOON", descriptionAr: "", descriptionEn: "" },
   { slug: "paper-bags", nameAr: "الأكياس الورقية", nameEn: "Paper Bags", status: "COMING_SOON", descriptionAr: "", descriptionEn: "" },
   { slug: "custom-packaging", nameAr: "تغليف مخصص", nameEn: "Custom Packaging", status: "COMING_SOON", descriptionAr: "تواصل معنا لمتطلبات خاصة.", descriptionEn: "Contact us for special requirements." },
+  { slug: "stickers-labels", nameAr: "الاستيكرات والملصقات", nameEn: "Stickers & Labels", status: "COMING_SOON", descriptionAr: "استيكرات وملصقات مطبوعة بشعارك لإغلاق العلب وتمييز المنتجات.", descriptionEn: "Printed stickers and labels to seal boxes and brand products." },
+  { slug: "wrapping-paper", nameAr: "ورق اللف والتغليف", nameEn: "Wrapping Paper", status: "COMING_SOON", descriptionAr: "ورق لف وتغليف مطبوع بشعارك للهدايا والمطاعم والمتاجر.", descriptionEn: "Printed wrapping paper for gifts, restaurants and shops." },
 ] as const;
 
 const MATERIALS: { code: string; nameAr: string; nameEn: string; kind: MaterialKind; colorHex: string; sortOrder: number }[] = [
@@ -38,6 +40,12 @@ const MATERIALS: { code: string; nameAr: string; nameEn: string; kind: MaterialK
   { code: "kraft-paper", nameAr: "ورق كرافت للأكياس", nameEn: "Kraft bag paper", kind: "KRAFT", colorHex: "#B98C5A", sortOrder: 7 },
   { code: "white-kraft-paper", nameAr: "ورق كرافت أبيض", nameEn: "White kraft paper", kind: "WHITE", colorHex: "#F1ECE2", sortOrder: 8 },
   { code: "rigid-board", nameAr: "كرتون مقوّى صلب (للعلب الفاخرة)", nameEn: "Rigid greyboard (luxury boxes)", kind: "OTHER", colorHex: "#2A221C", sortOrder: 9 },
+  { code: "cup-board", nameAr: "كرتون أكواب مبطّن", nameEn: "PE-coated cup board", kind: "WHITE", colorHex: "#F6F1E9", sortOrder: 10 },
+  { code: "sticker-gloss", nameAr: "ورق استيكر لامع", nameEn: "Gloss sticker paper", kind: "WHITE", colorHex: "#FBFAF7", sortOrder: 11 },
+  { code: "sticker-matte", nameAr: "ورق استيكر مطفي", nameEn: "Matte sticker paper", kind: "WHITE", colorHex: "#F2EEE7", sortOrder: 12 },
+  { code: "sticker-kraft", nameAr: "استيكر كرافت", nameEn: "Kraft sticker paper", kind: "KRAFT", colorHex: "#C49A68", sortOrder: 13 },
+  { code: "wrapping-white", nameAr: "ورق لف أبيض", nameEn: "White wrapping paper", kind: "WHITE", colorHex: "#FAF7F2", sortOrder: 14 },
+  { code: "greaseproof-paper", nameAr: "ورق مقاوم للدهون (للأغذية)", nameEn: "Greaseproof food paper", kind: "OTHER", colorHex: "#F3EBDD", sortOrder: 15 },
 ];
 
 const FINISHINGS = [
@@ -156,7 +164,7 @@ const FOOD_AND_BAGS = [
  * Template catalogue by industry. Limits are provisional (derived from each default size)
  * and must be confirmed by the factory; every dieline starts as "needs technical review".
  */
-type Cat = { code: string; engineKey: string; category: string; nameAr: string; nameEn: string; descAr: string; descEn: string; dims: [number, number, number]; industries: string[] };
+type Cat = { code: string; engineKey: string; category: string; nameAr: string; nameEn: string; descAr: string; descEn: string; dims: [number, number, number]; industries: string[]; limits?: number[]; materials?: string[] };
 const ENGINE_MATERIALS: Record<string, string[]> = {
   rsc: ["corrugated-kraft", "corrugated-white"],
   mailer: ["micro-flute", "corrugated-kraft", "corrugated-white", "kraft-board"],
@@ -168,7 +176,12 @@ const ENGINE_MATERIALS: Record<string, string[]> = {
   telescope: ["rigid-board", "white-board", "duplex-board", "kraft-board"],
   drawer: ["rigid-board", "white-board", "duplex-board", "kraft-board"],
   bag: ["kraft-paper", "white-kraft-paper"],
+  cup: ["cup-board"],
+  sheet: ["sticker-gloss", "sticker-matte", "sticker-kraft"],
+  round: ["sticker-gloss", "sticker-matte", "sticker-kraft"],
 };
+/** Engines with a single printed face (cups print the wrap; stickers and paper print one side). */
+const FRONT_ONLY_ENGINES = ["cup", "sheet", "round"];
 const OPEN_TOP_ENGINES = ["bag", "tray"];
 const CATALOG: Cat[] = [
   // shipping & e-commerce
@@ -233,6 +246,21 @@ const CATALOG: Cat[] = [
   { code: "accessories-box", engineKey: "ste", category: "folding-cartons", nameAr: "علبة إكسسوارات الجوال", nameEn: "Phone accessories box", descAr: "علبة للشواحن والسماعات والكابلات.", descEn: "A carton for chargers, earphones and cables.", dims: [90, 40, 140], industries: ["electronics", "retail"] },
   { code: "book-mailer", engineKey: "mailer", category: "mailer-boxes", nameAr: "صندوق كتب", nameEn: "Book mailer", descAr: "صندوق مسطح لشحن الكتب والمطبوعات.", descEn: "A flat mailer for books and printed matter.", dims: [250, 180, 50], industries: ["ecommerce", "retail"] },
   { code: "archive-box", engineKey: "rsc", category: "shipping-boxes", nameAr: "صندوق أرشيف", nameEn: "Archive box", descAr: "صندوق لحفظ الملفات والأوراق.", descEn: "A box for storing files and documents.", dims: [380, 300, 270], industries: ["logistics", "retail"] },
+  // paper cups: dims = top diameter, bottom diameter, height (common market sizes, approximate)
+  { code: "cup-4oz", engineKey: "cup", category: "paper-cups", nameAr: "كوب إسبريسو 4 أونصة", nameEn: "4 oz espresso cup", descAr: "كوب صغير للإسبريسو والقهوة العربية.", descEn: "A small cup for espresso and Arabic coffee.", dims: [62, 45, 60], industries: ["coffee", "restaurants", "dates"], limits: [50, 75, 35, 55, 45, 75] },
+  { code: "cup-8oz", engineKey: "cup", category: "paper-cups", nameAr: "كوب قهوة 8 أونصة", nameEn: "8 oz coffee cup", descAr: "الحجم الأكثر طلبًا للمشروبات الساخنة.", descEn: "The most popular size for hot drinks.", dims: [80, 56, 92], industries: ["coffee", "restaurants", "bakery"], limits: [70, 95, 45, 70, 75, 115] },
+  { code: "cup-12oz", engineKey: "cup", category: "paper-cups", nameAr: "كوب قهوة 12 أونصة", nameEn: "12 oz coffee cup", descAr: "للاتيه والكابتشينو والمشروبات الكبيرة.", descEn: "For lattes, cappuccinos and larger drinks.", dims: [90, 60, 112], industries: ["coffee", "restaurants"], limits: [80, 100, 50, 72, 95, 135] },
+  { code: "cup-16oz", engineKey: "cup", category: "paper-cups", nameAr: "كوب 16 أونصة", nameEn: "16 oz cup", descAr: "للمشروبات الباردة والعصائر والقهوة المثلجة.", descEn: "For cold drinks, juices and iced coffee.", dims: [90, 62, 135], industries: ["coffee", "restaurants"], limits: [80, 105, 50, 75, 115, 170] },
+  // stickers & labels: sheet = width x height (thickness fixed at 1 mm), round = diameter
+  { code: "round-sticker", engineKey: "round", category: "stickers-labels", nameAr: "استيكر دائري", nameEn: "Round sticker", descAr: "استيكر دائري بشعارك لإغلاق العلب والأكياس.", descEn: "A round logo sticker to seal boxes and bags.", dims: [50, 1, 1], industries: ["restaurants", "bakery", "coffee", "gifts", "ecommerce", "fashion", "perfumes"], limits: [20, 200, 1, 1, 1, 1] },
+  { code: "seal-sticker", engineKey: "round", category: "stickers-labels", nameAr: "ستيكر إغلاق صغير", nameEn: "Small seal sticker", descAr: "ستيكر صغير لإغلاق العلب الفاخرة وأكياس الهدايا.", descEn: "A small sticker to seal premium boxes and gift bags.", dims: [30, 1, 1], industries: ["gifts", "perfumes", "jewelry", "dates"], limits: [15, 60, 1, 1, 1, 1] },
+  { code: "square-label", engineKey: "sheet", category: "stickers-labels", nameAr: "ملصق مربع", nameEn: "Square label", descAr: "ملصق مربع للمنتجات والعبوات.", descEn: "A square label for products and packs.", dims: [60, 1, 60], industries: ["retail", "cosmetics", "bakery", "coffee"], limits: [20, 300, 1, 1, 20, 300] },
+  { code: "product-label", engineKey: "sheet", category: "stickers-labels", nameAr: "ملصق منتج مستطيل", nameEn: "Rectangular product label", descAr: "ملصق للبرطمانات والعلب والزجاجات مع بيانات المنتج.", descEn: "A label for jars, boxes and bottles with product details.", dims: [90, 1, 50], industries: ["retail", "cosmetics", "dates", "coffee", "pharma"], limits: [20, 300, 1, 1, 15, 300] },
+  { code: "sticker-sheet-a5", engineKey: "sheet", category: "stickers-labels", nameAr: "استيكر شيت A5", nameEn: "A5 sticker sheet", descAr: "شيت استيكرات بمقاس A5 لعدة ملصقات بتصميمك.", descEn: "An A5 sheet carrying several stickers of your design.", dims: [148, 1, 210], industries: ["ecommerce", "retail", "gifts"], limits: [100, 320, 1, 1, 100, 460] },
+  // wrapping paper
+  { code: "gift-wrap-sheet", engineKey: "sheet", category: "wrapping-paper", nameAr: "ورق لف هدايا 50×70", nameEn: "Gift wrap sheet 50x70", descAr: "ورق لف مطبوع بشعارك للهدايا والمتاجر.", descEn: "Logo-printed wrapping paper for gifts and shops.", dims: [500, 1, 700], industries: ["gifts", "fashion", "perfumes", "retail"], limits: [200, 1000, 1, 1, 200, 1400], materials: ["wrapping-white", "kraft-paper", "white-kraft-paper"] },
+  { code: "food-wrap-paper", engineKey: "sheet", category: "wrapping-paper", nameAr: "ورق تغليف ساندويتش", nameEn: "Sandwich wrap paper", descAr: "ورق مقاوم للدهون مطبوع بشعارك للساندويتشات والبرجر.", descEn: "Greaseproof paper printed with your logo for sandwiches and burgers.", dims: [300, 1, 300], industries: ["restaurants", "bakery", "coffee"], limits: [150, 600, 1, 1, 150, 600], materials: ["greaseproof-paper", "wrapping-white"] },
+  { code: "tissue-paper", engineKey: "sheet", category: "wrapping-paper", nameAr: "ورق تيشو مطبوع", nameEn: "Printed tissue paper", descAr: "ورق خفيف لتغليف الملابس والهدايا داخل العلب.", descEn: "Light paper to wrap garments and gifts inside boxes.", dims: [500, 1, 750], industries: ["fashion", "gifts", "ecommerce"], limits: [300, 1000, 1, 1, 300, 1400], materials: ["wrapping-white", "white-kraft-paper"] },
   { code: "plant-box", engineKey: "rsc", category: "shipping-boxes", nameAr: "صندوق نباتات وزهور", nameEn: "Plant & flower box", descAr: "صندوق طويل لشحن النباتات والزهور.", descEn: "A tall box for shipping plants and flowers.", dims: [200, 200, 450], industries: ["gifts", "ecommerce"] },
 ];
 const EXISTING_INDUSTRIES: Record<string, string[]> = {
@@ -259,11 +287,12 @@ const MORE_TEMPLATES = CATALOG.map((t) => ({
   nameEn: t.nameEn,
   descriptionAr: t.descAr,
   descriptionEn: t.descEn,
-  limits: provisionalLimits(t.dims),
+  limits: t.limits ?? provisionalLimits(t.dims),
   defaults: t.dims,
-  materials: ENGINE_MATERIALS[t.engineKey],
+  materials: t.materials ?? ENGINE_MATERIALS[t.engineKey],
   print: ["none", "1c", "2c", "4c"],
   openTop: OPEN_TOP_ENGINES.includes(t.engineKey),
+  frontOnly: FRONT_ONLY_ENGINES.includes(t.engineKey),
   industries: t.industries,
 }));
 
@@ -344,8 +373,8 @@ async function main() {
   await db.finishingOption.update({ where: { code: "hot-foil" }, data: { nameAr: "بصمة فويل (ذهبي / فضي)", nameEn: "Hot foil stamping (gold / silver)" } }).catch(() => undefined);
 
   for (const t of [
-    ...TEMPLATES.map((x) => ({ ...x, openTop: false, industries: EXISTING_INDUSTRIES[x.code] ?? [] })),
-    ...FOOD_AND_BAGS.map((x) => ({ ...x, industries: EXISTING_INDUSTRIES[x.code] ?? [] })),
+    ...TEMPLATES.map((x) => ({ ...x, openTop: false, frontOnly: false, industries: EXISTING_INDUSTRIES[x.code] ?? [] })),
+    ...FOOD_AND_BAGS.map((x) => ({ ...x, frontOnly: false, industries: EXISTING_INDUSTRIES[x.code] ?? [] })),
     ...MORE_TEMPLATES,
   ]) {
     const existing = await db.packagingTemplate.findUnique({ where: { code: t.code } });
@@ -378,7 +407,7 @@ async function main() {
           dielineValidated: false,
           constraints: { note: "System default limits — to be confirmed by the factory" },
           printOptions: t.print,
-          panels: { create: SURFACES.filter((s) => !(t.openTop && s.key === "top")).map((s) => ({ ...s, printable: true })) },
+          panels: { create: SURFACES.filter((s) => (t.frontOnly ? s.key === "front" : !(t.openTop && s.key === "top"))).map((s) => ({ ...s, printable: true })) },
         },
       });
       await tx.packagingTemplate.update({ where: { id: tpl.id }, data: { currentVersionId: v.id } });
