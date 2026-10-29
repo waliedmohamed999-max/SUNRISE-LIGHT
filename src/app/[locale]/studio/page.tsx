@@ -14,9 +14,17 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return { title: t.studio.title, alternates: { canonical: `/${locale}/studio`, languages: { ar: "/ar/studio", en: "/en/studio" } } };
 }
 
-export default async function StudioPage({ params, searchParams }: { params: Promise<{ locale: Locale }>; searchParams: Promise<{ design?: string; template?: string; industry?: string }> }) {
+/** Starting template from the link that opened the studio: an exact template, else the first of a category, else of an industry. */
+function pickTemplate(templates: { code: string; category: { slug: string }; industries: string[] }[], q: { template?: string; category?: string; industry?: string }) {
+  if (q.template && templates.some((x) => x.code === q.template)) return q.template;
+  if (q.category) return templates.find((x) => x.category.slug === q.category)?.code;
+  if (q.industry) return templates.find((x) => x.industries.includes(q.industry!))?.code;
+  return undefined;
+}
+
+export default async function StudioPage({ params, searchParams }: { params: Promise<{ locale: Locale }>; searchParams: Promise<{ design?: string; template?: string; industry?: string; category?: string }> }) {
   const { locale } = await params;
-  const { design: designId, template, industry } = await searchParams;
+  const { design: designId, template, industry, category } = await searchParams;
   const t = getDict(locale);
   const [catalog, user] = await Promise.all([loadCatalog(), getCurrentUser()]);
 
@@ -40,7 +48,7 @@ export default async function StudioPage({ params, searchParams }: { params: Pro
   return (
     <>
       <h1 className="sr-only">{t.studio.title}</h1>
-      <StudioApp catalog={catalog} initial={initial} initialTemplateCode={template ?? (industry ? catalog.templates.find((x) => x.industries.includes(industry))?.code : undefined)} isLoggedIn={!!user} maxUploadMb={Number(process.env.MAX_UPLOAD_MB || 10)} />
+      <StudioApp catalog={catalog} initial={initial} initialTemplateCode={pickTemplate(catalog.templates, { template, category, industry })} isLoggedIn={!!user} maxUploadMb={Number(process.env.MAX_UPLOAD_MB || 10)} />
     </>
   );
 }

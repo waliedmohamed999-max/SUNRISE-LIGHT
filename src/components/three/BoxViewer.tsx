@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { ContactShadows, Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { BoxModel, type BoxModelProps } from "./BoxModel";
+import { BoxModel, modelHeight, type BoxModelProps } from "./BoxModel";
 import { DarkroomLights } from "./Lights";
 import { hasWebGL } from "@/design/hooks";
 
@@ -65,7 +65,8 @@ export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate,
   }, [dimsKey]);
   const controls = useRef<OrbitControlsImpl | null>(null);
   const [supported, setSupported] = useState<boolean | null>(null);
-  const targetY = ((model.size ?? 2.6) * model.dims.height) / Math.max(model.dims.length, model.dims.width, model.dims.height) / 2;
+  const modelSize = model.size ?? (model.boxStyle === "bag" ? 2.0 : model.boxStyle === "cup" ? 2.1 : 2.6);
+  const targetY = modelHeight(model.dims, model.boxStyle, modelSize) / 2;
   useEffect(() => setSupported(hasWebGL()), []);
 
   if (supported === false) return <>{fallback}</>;
@@ -88,9 +89,10 @@ export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate,
             <Lightformer intensity={0.6} color="#ffffff" position={[-5, 1, 2]} scale={[2, 4, 1]} />
           </Environment>
           {/* tall bags need headroom for their handles */}
-          <BoxModel {...model} size={model.size ?? (model.boxStyle === "bag" ? 2.0 : undefined)} />
+          <BoxModel {...model} size={modelSize} />
           {/* baked once per size (frames={1}); re-mounted when dimensions change */}
-          <ContactShadows key={shadowKey} frames={1} resolution={256} position={[0, 0, 0]} opacity={light ? 0.35 : 0.7} scale={9} blur={2.6} far={4} color={light ? "#1d2235" : "#000000"} />
+          {/* just below the floor: a shadow plane at the floor height z-fights with the inside of open boxes */}
+          <ContactShadows key={shadowKey} frames={1} resolution={256} position={[0, -0.006, 0]} opacity={light ? 0.35 : 0.7} scale={9} blur={2.6} far={4} color={light ? "#1d2235" : "#000000"} />
           <OrbitControls ref={controls} makeDefault enabled={interactive} enablePan={false} minDistance={2.5} maxDistance={12} target={[0, targetY, 0]} autoRotate={autoRotate} autoRotateSpeed={0.8} maxPolarAngle={Math.PI * 0.95} />
           <CameraRig preset={preset} nonce={presetNonce} controls={controls} targetY={targetY} />
           <Capture onCanvas={onCanvas} />

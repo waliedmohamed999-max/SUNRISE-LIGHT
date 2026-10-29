@@ -256,6 +256,72 @@ export function showcaseCanvases(kind: Exclude<ShowcaseKind, "cup">): Record<Sur
   });
 }
 
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** Sticker roll: a cream liner carrying a row of logo labels (wraps around the roll). Call after brandMarkReady(). */
+export function stickerStripCanvas(labels = 10) {
+  const W = 2048, H = 512;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  grainFill(ctx, W, H, "#F4EADB", 5);
+  const step = W / labels;
+  for (let i = 0; i < labels; i++) {
+    const x = i * step + step * 0.08, w = step * 0.84, y = H * 0.14, h = H * 0.72;
+    roundRect(ctx, x, y, w, h, h * 0.16);
+    ctx.fillStyle = i % 2 ? "#2F357C" : "#FFFFFF";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.08)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (!brandLogo(ctx, x + w / 2, y + h / 2, w * 0.82, i % 2 ? "dark" : "light")) sunMark(ctx, x + w / 2, y + h * 0.58, h * 0.16, "#EA5B32");
+  }
+  return c;
+}
+
+/** Sticker sheet: round logo stickers in the brand colours on a white backing sheet. Call after brandMarkReady(). */
+export function stickerSheetCanvas() {
+  const W = 1024, H = 1400;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  grainFill(ctx, W, H, "#FBF7F0", 4);
+  const cols = 3, rows = 4, cw = W / cols, ch = H / rows, r = Math.min(cw, ch) * 0.4;
+  const looks: [string, "mark" | "light" | "dark", string][] = [
+    ["#EA5B32", "mark", "#FFEDD7"],
+    ["#2F357C", "dark", ""],
+    ["#C9A06B", "light", ""],
+  ];
+  for (let j = 0; j < rows; j++)
+    for (let i = 0; i < cols; i++) {
+      const [bg, kind, tint] = looks[(i + j) % looks.length];
+      const cx = cw * (i + 0.5), cy = ch * (j + 0.5);
+      // die-cut outline
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 1.06, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(20,20,30,0.12)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = bg;
+      ctx.fill();
+      if (kind === "mark") sunMark(ctx, cx, cy + r * 0.12, r * 0.42, tint);
+      else brandLogo(ctx, cx, cy, r * 1.5, kind);
+    }
+  return c;
+}
+
 export function cupCanvas() {
   const c = document.createElement("canvas");
   c.width = 1024;

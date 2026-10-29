@@ -18,7 +18,7 @@ export const FACTORY_SERVICES: FactoryService[] = [
   { slug: "hard-cover-boxes", name: { ar: "كرتون هارد كفر", en: "Hard-cover boxes" }, image: "/services/hard-cover-boxes.webp", studioCategory: "gift-boxes" },
   { slug: "kraft-bags", name: { ar: "أكياس كرافت", en: "Kraft bags" }, image: "/services/kraft-bags.webp", studioCategory: "paper-bags" },
   { slug: "invercote-bags", name: { ar: "أكياس إنفركوت", en: "Invercote bags" }, image: "/services/invercote-bags.webp", studioCategory: "paper-bags" },
-  { slug: "sticker-rolls", name: { ar: "استيكر رول", en: "Sticker rolls" }, image: "/services/sticker-rolls.webp" },
-  { slug: "sticker-sheets", name: { ar: "استيكر شيت", en: "Sticker sheets" }, image: "/services/sticker-sheets.webp" },
-  { slug: "wrapping-paper", name: { ar: "ورق لف", en: "Wrapping paper" }, image: "/services/wrapping-paper.webp" },
+  { slug: "sticker-rolls", name: { ar: "استيكر رول", en: "Sticker rolls" }, image: "/services/sticker-rolls.webp", studioCategory: "stickers-labels" },
+  { slug: "sticker-sheets", name: { ar: "استيكر شيت", en: "Sticker sheets" }, image: "/services/sticker-sheets.webp", studioCategory: "stickers-labels" },
+  { slug: "wrapping-paper", name: { ar: "ورق لف", en: "Wrapping paper" }, image: "/services/wrapping-paper.webp", studioCategory: "wrapping-paper" },
 ];

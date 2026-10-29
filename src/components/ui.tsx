@@ -124,15 +124,37 @@ export function Breadcrumbs({ items }: { items: { label: string; href?: string }
   );
 }
 
-export function PageHeader({ title, body, crumbs, actions }: { title: string; body?: string; crumbs?: { label: string; href?: string }[]; actions?: ReactNode }) {
+/** Editorial page header (same language as the homepage chapters): eyebrow, large display title, glow. */
+export function PageHeader({ title, body, crumbs, actions, eyebrow }: { title: string; body?: string; crumbs?: { label: string; href?: string }[]; actions?: ReactNode; eyebrow?: string }) {
   return (
-    <header className="border-b border-dashed border-cork">
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        {crumbs && <Breadcrumbs items={crumbs} />}
-        <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-[41px] leading-[0.95] font-medium text-cream md:text-[51px] md:leading-[0.9]">{title}</h1>
-            {body && <p className="mt-5 max-w-2xl text-cream/65">{body}</p>}
+    <header className="relative overflow-hidden border-b border-dashed border-cork">
+      <div aria-hidden className="pointer-events-none absolute -end-48 -top-32 size-[520px] rounded-full bg-ember/12 blur-[130px]" />
+      <div className="relative px-4 pt-14 pb-16 sm:px-8 lg:pt-20">
+        {crumbs && (
+          <nav aria-label="breadcrumb" className="eyebrow text-[11px] font-medium text-cream/45">
+            <ol className="flex flex-wrap items-center gap-2">
+              {crumbs.map((it, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  {i > 0 && <span aria-hidden>/</span>}
+                  {it.href ? (
+                    <Link href={it.href} className="hover:text-cream">
+                      {it.label}
+                    </Link>
+                  ) : (
+                    <span aria-current="page" className="text-cream/75">
+                      {it.label}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
+        <div className="mt-10 flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-4xl">
+            {eyebrow && <p className="eyebrow text-xs font-medium text-ember">{eyebrow}</p>}
+            <h1 className="display mt-4 text-[48px] leading-[0.92] text-cream sm:text-[72px] lg:text-[88px]">{title}</h1>
+            {body && <p className="mt-6 max-w-2xl text-[16px] leading-relaxed text-cream/65">{body}</p>}
           </div>
           {actions}
         </div>

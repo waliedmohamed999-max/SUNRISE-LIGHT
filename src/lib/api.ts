@@ -51,7 +51,7 @@ export function api<P = Record<string, string>>(
       return await handler(req, ctx);
     } catch (err) {
       if (err instanceof HttpError) return NextResponse.json({ error: err.code, message: err.message }, { status: err.status });
-      if (err instanceof ZodError) return NextResponse.json({ error: "validation", issues: err.issues.map((i) => ({ path: i.path.join("."), message: i.message })) }, { status: 400 });
+      if (err instanceof ZodError) return NextResponse.json({ error: "validation", issues: err.issues.map((i) => ({ path: i.path.map(String).join("."), message: i.message })) }, { status: 400 });
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") return NextResponse.json({ error: "not_found" }, { status: 404 });
       console.error("[api]", req.method, req.nextUrl.pathname, err);
       return NextResponse.json({ error: "internal" }, { status: 500 });

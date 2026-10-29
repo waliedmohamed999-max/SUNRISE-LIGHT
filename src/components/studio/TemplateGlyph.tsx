@@ -4,7 +4,27 @@ import { cx } from "@/components/ui";
 export function TemplateGlyph({ engineKey, className }: { engineKey: string; className?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={cx("size-11 shrink-0 rounded-lg bg-paper-200 p-1.5", className)} aria-hidden>
-      {engineKey === "ste" ? (
+      {engineKey === "cup" ? (
+        <>
+          <path d="M15 12h18l-3 32H18z" fill="#F4EADB" />
+          <path d="M16.3 22h15.4l-.9 10H17.2z" fill="#EA5B32" />
+          <ellipse cx="24" cy="12" rx="9" ry="2.6" fill="#E9DCC9" stroke="#C9B79C" strokeWidth="1" />
+        </>
+      ) : engineKey === "round" ? (
+        <>
+          <circle cx="24" cy="25" r="15" fill="#EA5B32" />
+          <circle cx="24" cy="25" r="10.5" fill="none" stroke="#FFEDD7" strokeWidth="1.5" />
+          <path d="M33 15l6-4" stroke="#C9B79C" strokeWidth="2" strokeLinecap="round" />
+        </>
+      ) : engineKey === "sheet" ? (
+        <>
+          <path d="M12 9h20l6 6v25H12z" fill="#FBF7F0" stroke="#C9B79C" strokeWidth="1" />
+          <circle cx="19" cy="18" r="4" fill="#EA5B32" />
+          <circle cx="30" cy="18" r="4" fill="#2F357C" />
+          <circle cx="19" cy="30" r="4" fill="#C9A06B" />
+          <circle cx="30" cy="30" r="4" fill="#EA5B32" />
+        </>
+      ) : engineKey === "ste" ? (
         <>
           <path d="M18 10 26 6 32 9 24 13z" fill="#F5A623" />
           <path d="M18 10 24 13 24 44 18 41z" fill="#e8dcc8" />

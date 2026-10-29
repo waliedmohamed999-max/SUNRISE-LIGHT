@@ -49,7 +49,7 @@ export function ServicesHero({ body, stats }: { body: string; stats: { value: nu
             ))}
           </dl>
         </div>
-        <ProductStage kind="mailer" className="relative h-[52vh] min-h-[340px] lg:h-[72vh]" />
+        <ProductStage kind="mailer" presenting className="relative h-[52vh] min-h-[340px] lg:h-[72vh]" />
       </div>
     </section>
   );
@@ -63,7 +63,7 @@ export function ServicesIndex() {
   const s = FACTORY_SERVICES[active];
   const cta = (svc: (typeof FACTORY_SERVICES)[number]) =>
     svc.studioCategory
-      ? { href: `/${locale}/products/${svc.studioCategory}`, label: ar ? "صمّمها في الاستوديو" : "Design it in the studio" }
+      ? { href: `/${locale}/studio?category=${svc.studioCategory}`, label: ar ? "صمّمها في الاستوديو" : "Design it in the studio" }
       : { href: `/${locale}/contact`, label: ar ? "اطلب عرض سعر" : "Request a quote" };
 
   return (
@@ -155,6 +155,42 @@ export function ServicesIndex() {
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** About hero: headline, the company's own line and the live 3D paper bag. */
+export function AboutHero({ title, lead }: { title: string; lead: string }) {
+  const { locale, t } = useI18n();
+  const ar = locale === "ar";
+  return (
+    <section className="relative z-20 overflow-hidden bg-walnut" aria-labelledby="about-title">
+      <div aria-hidden className="pointer-events-none absolute -start-40 top-16 size-[520px] rounded-full bg-ember/15 blur-[120px]" />
+      <div className="relative grid min-h-[calc(90dvh-4.5rem)] items-center gap-10 px-4 py-16 sm:px-8 lg:grid-cols-[1.1fr_1fr]">
+        <div>
+          <nav aria-label={ar ? "مسار الصفحة" : "Breadcrumb"} className="eyebrow flex items-center gap-2 text-[11px] font-medium text-cream/45">
+            <Link href={`/${locale}`} className="hover:text-cream">
+              {t.common.breadcrumbHome}
+            </Link>
+            <span aria-hidden>/</span>
+            <span className="text-cream/75">{t.nav.about}</span>
+          </nav>
+          <p className="eyebrow mt-10 text-xs font-medium text-ember">{ar ? "مصنع ضوء الشروق للكرتون والتغليف" : "Sunrise Light Packaging Factory"}</p>
+          <h1 id="about-title" className="display mt-4 text-[52px] leading-[0.92] sm:text-[80px] lg:text-[96px]">
+            {title}
+          </h1>
+          {lead && <p className="display mt-7 max-w-xl text-[22px] leading-snug text-cream/80 sm:text-[28px]">{lead}</p>}
+          <div className="mt-9 flex flex-wrap gap-3">
+            <Link href={`/${locale}/products`} className={buttonClass("primary", "md")}>
+              {t.nav.products}
+            </Link>
+            <Link href={`/${locale}/contact`} className={buttonClass("outline", "md")}>
+              {t.nav.contact}
+            </Link>
+          </div>
+        </div>
+        <ProductStage kind="bag" presenting className="relative h-[48vh] min-h-[340px] lg:h-[70vh]" />
       </div>
     </section>
   );

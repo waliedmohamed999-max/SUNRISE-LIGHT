@@ -5,6 +5,7 @@ import { pizzaBox } from "./templates/pizza-box";
 import { paperBag } from "./templates/paper-bag";
 import { foodTray } from "./templates/food-tray";
 import { clamshell, drawerBox, straightTuck, telescopeBox } from "./templates/more-engines";
+import { flatSheet, paperCup, roundLabel } from "./templates/print-engines";
 import type { DimensionLimits, Dimensions, PackagingEngine, ValidationIssue } from "./types";
 
 export const ENGINES: Record<string, PackagingEngine> = {
@@ -18,6 +19,9 @@ export const ENGINES: Record<string, PackagingEngine> = {
   [telescopeBox.key]: telescopeBox,
   [drawerBox.key]: drawerBox,
   [clamshell.key]: clamshell,
+  [paperCup.key]: paperCup,
+  [flatSheet.key]: flatSheet,
+  [roundLabel.key]: roundLabel,
 };
 
 export function getEngine(key: string): PackagingEngine {

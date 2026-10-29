@@ -8,6 +8,8 @@ const MAP: Record<string, typeof BoxIcon> = {
   "food-packaging": FoodIcon,
   "paper-cups": CupIcon,
   "paper-bags": BagIcon,
+  "stickers-labels": SparkIcon,
+  "wrapping-paper": GiftIcon,
 };
 
 export function CategoryIcon({ slug, className }: { slug: string; className?: string }) {

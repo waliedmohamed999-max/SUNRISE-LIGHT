@@ -96,4 +96,15 @@ export const ENGINE_TIPS: Record<string, { ar: string; en: string }> = {
   telescope: { ar: "للهدايا الفاخرة استخدم كرتوناً مقوّى صلباً مع غلاف مطبوع، وأضف شريطة أو إسفنجاً داخلياً.", en: "For luxury gifts use rigid board with a printed wrap; add a ribbon or foam insert." },
   drawer: { ar: "الدرج يمنح تجربة فتح فاخرة؛ أضف شريطة سحب وإسفنجاً داخلياً لتثبيت المنتج.", en: "A drawer gives a premium reveal; add a pull ribbon and a foam insert to hold the product." },
   bag: { ar: "اختر وزن الورق حسب الحمولة، والمقابض المبرومة للاستخدام اليومي أو الشريط للهدايا.", en: "Choose paper weight for the load; twisted handles for everyday use, ribbon for gifts." },
+  cup: { ar: "صمّم على الغلاف المفرود: منتصفه يواجه العميل، وأطرافه تلتقي عند خط اللصق خلف الكوب. اترك الشعار بعيدًا عن الحافة العلوية.", en: "Design on the unrolled wrap: its middle faces the customer and its ends meet at the glue seam at the back. Keep the logo clear of the rim." },
+  sheet: { ar: "اترك هامشًا 2–3 مم داخل حافة القص، واستخدم شعارًا بصيغة SVG لحواف حادة في المقاسات الصغيرة.", en: "Keep 2–3 mm inside the cut edge, and use an SVG logo for crisp edges at small sizes." },
+  round: { ar: "الملصق الدائري يُقص على شكل دائرة: ضع العناصر المهمة داخل الدائرة بعيدًا عن الحافة.", en: "Round stickers are die-cut to a circle: keep important elements inside, away from the edge." },
 };
+
+/** Human size label per shape: cups by their two diameters, round stickers by diameter, flat prints by their two sides. */
+export function formatDims(d: Dimensions, boxStyle?: string): string {
+  if (boxStyle === "cup") return `Ø${d.length}/${d.width} × ${d.height} mm`;
+  if (boxStyle === "disc") return `Ø${d.length} mm`;
+  if (boxStyle === "flat") return `${d.length} × ${d.height} mm`;
+  return `${d.length} × ${d.width} × ${d.height} mm`;
+}

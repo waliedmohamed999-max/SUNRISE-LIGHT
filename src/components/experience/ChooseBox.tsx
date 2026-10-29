@@ -9,6 +9,39 @@ import { brandMarkReady, SHOWCASE_DIMS, showcaseCanvases } from "@/components/th
 import type { SurfaceKey } from "@/packaging/types";
 
 const BoxViewer = dynamic(() => import("@/components/three/BoxViewer"), { ssr: false });
+const ProductStage = dynamic(() => import("@/components/three/ProductStage"), { ssr: false });
+
+/** Cups and stickers beside the box templates: their own 3D models here, designed in the studio from a starter template. */
+const EXTRAS = [
+  {
+    key: "cup",
+    kind: "cup" as const,
+    template: "cup-8oz",
+    name: { ar: "أكواب ورقية", en: "Paper cups" },
+    desc: {
+      ar: "أكواب ورقية مطبوعة بشعارك وألوانك للقهوة والمشروبات، من 4 إلى 16 أونصة. صمّم الغلاف في الاستوديو وشاهده ملفوفًا على الكوب.",
+      en: "Paper cups printed with your logo and colours for coffee and drinks, from 4 to 16 oz. Design the wrap in the studio and see it on the cup.",
+    },
+    points: {
+      ar: ["4 مقاسات جاهزة", "غلاف مطبوع بالكامل", "مخطط قص على شكل مروحة"],
+      en: ["4 ready sizes", "Fully printed wrap", "Fan-shaped cutting layout"],
+    },
+  },
+  {
+    key: "stickers",
+    kind: "stickers" as const,
+    template: "round-sticker",
+    name: { ar: "استيكرات", en: "Stickers" },
+    desc: {
+      ar: "استيكر رول واستيكر شيت مطبوع بشعارك لإغلاق العلب وتمييز منتجاتك وتغليف طلباتك.",
+      en: "Sticker rolls and sticker sheets printed with your logo to seal boxes, label products and finish your orders.",
+    },
+    points: {
+      ar: ["دائري ومربع ومستطيل", "شيت A5 وملصقات منتجات", "ورق لامع أو مطفي أو كرافت"],
+      en: ["Round, square and rectangular", "A5 sheets and product labels", "Gloss, matte or kraft paper"],
+    },
+  },
+];
 
 export interface ChooseTemplate {
   code: string;
@@ -29,7 +62,8 @@ export function ChooseBox({ templates }: { templates: ChooseTemplate[] }) {
   const st = t.story;
   const [active, setActive] = useState(0);
   const [canvases, setCanvases] = useState<Record<SurfaceKey, HTMLCanvasElement> | null>(null);
-  const tpl = templates[active];
+  const extra = active >= templates.length ? EXTRAS[active - templates.length] : null;
+  const tpl = templates[extra ? 0 : active];
   const kind = SHOWCASE_KIND[tpl.engineKey];
   const spec = SHOWCASE_DIMS[kind];
 
@@ -63,9 +97,9 @@ export function ChooseBox({ templates }: { templates: ChooseTemplate[] }) {
           {st.chooseTitle}
         </h2>
         <div role="tablist" className="mt-10 flex flex-wrap justify-center gap-2">
-          {templates.map((x, i) => (
+          {[...templates.map((x) => ({ id: x.code, name: x.name })), ...EXTRAS.map((x) => ({ id: x.key, name: x.name[locale] }))].map((x, i) => (
             <button
-              key={x.code}
+              key={x.id}
               role="tab"
               aria-selected={i === active}
               onClick={() => setActive(i)}
@@ -78,26 +112,35 @@ export function ChooseBox({ templates }: { templates: ChooseTemplate[] }) {
 
         <div className="mt-6 grid items-center gap-8 lg:grid-cols-[1fr_1.4fr_1fr]">
           <div className="lg:self-start lg:pt-16">
-            <h3 className="display text-[29px] leading-none">{tpl.name}</h3>
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-cream/65">{tpl.description}</p>
+            <h3 className="display text-[29px] leading-none">{extra ? extra.name[locale] : tpl.name}</h3>
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-cream/65">{extra ? extra.desc[locale] : tpl.description}</p>
+            {extra && (
+              <Link href={`/${locale}/studio?template=${extra.template}`} className={cx(buttonClass("primary", "sm"), "mt-6")}>
+                {t.pages.designNow}
+              </Link>
+            )}
           </div>
           <div className="relative h-[46vh] min-h-[320px]">
-            {canvases && (
-              <BoxViewer
-                key={tpl.code}
-                className="absolute inset-0"
-                dims={spec.dims}
-                boxStyle={spec.style}
-                canvases={canvases}
-                textureVersion={1}
-                materialColor={spec.material}
-                autoRotate
-                interactive
-              />
+            {extra ? (
+              <ProductStage key={extra.key} kind={extra.kind} className="absolute inset-0" />
+            ) : (
+              canvases && (
+                <BoxViewer
+                  key={tpl.code}
+                  className="absolute inset-0"
+                  dims={spec.dims}
+                  boxStyle={spec.style}
+                  canvases={canvases}
+                  textureVersion={1}
+                  materialColor={spec.material}
+                  autoRotate
+                  interactive
+                />
+              )
             )}
           </div>
           <ul className="space-y-3 lg:self-start lg:pt-16">
-            {[st.closures[tpl.engineKey], `${tpl.printableFaces} ${st.chooseRows.faces}`, tpl.validated ? st.validated : st.review].map((f) => (
+            {(extra ? extra.points[locale] : [st.closures[tpl.engineKey], `${tpl.printableFaces} ${st.chooseRows.faces}`, tpl.validated ? st.validated : st.review]).map((f) => (
               <li key={f} className="flex items-center gap-3 text-sm text-cream/85">
                 <span className="grid size-6 shrink-0 place-items-center rounded-full border border-dashed border-cream/50 text-[10px]">✓</span>
                 {f}
