@@ -14,7 +14,7 @@ export async function nextNumber(tx: Tx, series: "RFQ" | "Q") {
   return `SL-${series}-${year}-${String(row.value).padStart(5, "0")}`;
 }
 
-export async function transition(tx: Tx, args: { requestId: string; from: QuotationStatus; to: QuotationStatus; allowed: Record<QuotationStatus, QuotationStatus[]>; actorId: string; note?: string }) {
+export async function transition(tx: Tx, args: { requestId: string; from: QuotationStatus; to: QuotationStatus; allowed: Record<QuotationStatus, QuotationStatus[]>; actorId: string | null; note?: string }) {
   if (!args.allowed[args.from].includes(args.to)) throw new HttpError(409, "invalid_transition", `${args.from} → ${args.to}`);
   // Optimistic concurrency: only move if nobody changed the status meanwhile
   const res = await tx.quotationRequest.updateMany({ where: { id: args.requestId, status: args.from }, data: { status: args.to } });

@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/i18n/client";
-import { BoxIcon, cx, FactoryIcon, LayersIcon, PenIcon, SettingsIcon, ShieldIcon, UserIcon, BellIcon, GridIcon, PaletteIcon, CubeIcon, LockIcon } from "@/components/ui";
+import { BoxIcon, cx, FactoryIcon, LayersIcon, PenIcon, SettingsIcon, ShieldIcon, UserIcon, BellIcon, GridIcon, PaletteIcon, CubeIcon, LockIcon, SparkIcon } from "@/components/ui";
 
-export type AdminPerms = Record<"quotes" | "templates" | "categories" | "materials" | "customers" | "content" | "users", boolean>;
+export type AdminPerms = Record<"quotes" | "pricing" | "templates" | "categories" | "materials" | "customers" | "content" | "users", boolean>;
 export type AdminBadges = { quotes: number; messages: number; templates: number };
 
 type NavItem = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode; show: boolean; exact?: boolean; badge?: number; warn?: boolean };
@@ -21,6 +21,7 @@ export function AdminNav({ perms, badges }: { perms: AdminPerms; badges: AdminBa
       items: [
         { href: b, label: t.admin.overview, Icon: GridIcon, show: true, exact: true },
         { href: `${b}/quotes`, label: t.admin.quotes, Icon: BoxIcon, show: perms.quotes, badge: badges.quotes },
+        { href: `${b}/pricing`, label: ar ? "التسعير التلقائي" : "Automatic pricing", Icon: SparkIcon, show: perms.pricing },
         { href: `${b}/designs`, label: ar ? "تصاميم العملاء" : "Customer designs", Icon: PaletteIcon, show: perms.customers },
         { href: `${b}/customers`, label: t.admin.customers, Icon: UserIcon, show: perms.customers },
         { href: `${b}/messages`, label: t.admin.messages, Icon: BellIcon, show: perms.customers, badge: badges.messages },

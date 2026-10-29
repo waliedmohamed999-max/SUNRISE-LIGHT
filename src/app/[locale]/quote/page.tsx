@@ -8,6 +8,7 @@ import { designDocumentSchema } from "@/design/document";
 import { getDict } from "@/i18n/dictionaries";
 import type { Locale } from "@/i18n/config";
 import { EmptyState, LinkButton, PageHeader } from "@/components/ui";
+import { getPricing } from "@/lib/pricing-store";
 import { QuoteFlow } from "@/components/site/QuoteFlow";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: Locale }> }): Promise<Metadata> {
@@ -19,6 +20,18 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
   const { locale } = await params;
   const { design: designId } = await searchParams;
   const t = getDict(locale);
+  // the intro follows the factory pricing settings (instant quotation, live estimate, or manual review)
+  const pricing = await getPricing();
+  const ar = locale === "ar";
+  const intro = !pricing.enabled
+    ? t.quote.noPrice
+    : pricing.mode === "auto-send"
+      ? ar
+        ? "يُحسب السعر فورًا من قائمة أسعار المصنع المعتمدة، ويصلك عرض السعر الرسمي مباشرة بعد إرسال الطلب."
+        : "Prices are computed instantly from the factory price list, and the official quotation arrives as soon as you submit."
+      : ar
+        ? "ترى سعرًا تقديريًا فوريًا أثناء الطلب، ويؤكده فريق المصنع في عرض السعر الرسمي."
+        : "You see an instant estimate while ordering; the factory confirms it in the official quotation.";
   const user = await getCurrentUser();
   if (!user) redirect(`/${locale}/login?next=${encodeURIComponent(`/${locale}/quote${designId ? `?design=${designId}` : ""}`)}`);
 
@@ -36,7 +49,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
   if (!design || !parsed?.success) {
     return (
       <>
-        <PageHeader title={t.quote.title} body={t.quote.noPrice} crumbs={crumbs} />
+        <PageHeader title={t.quote.title} body={intro} crumbs={crumbs} />
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <h2 className="mb-6 text-lg font-semibold text-navy">{t.quote.chooseDesign}</h2>
           {designs.length === 0 ? (
@@ -74,7 +87,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
 
   return (
     <>
-      <PageHeader title={t.quote.title} body={t.quote.noPrice} crumbs={crumbs} />
+      <PageHeader title={t.quote.title} body={intro} crumbs={crumbs} />
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <QuoteFlow
           design={{ id: design.id, name: design.name, document: parsed.data, engineKey: template?.engineKey ?? "rsc", templateNameAr: template?.nameAr ?? "", templateNameEn: template?.nameEn ?? "" }}

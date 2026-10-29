@@ -8,6 +8,8 @@ import { Alert, Breadcrumbs, buttonClass, Card } from "@/components/ui";
 import { fmtDate, fmtMoney, StatusBadge } from "@/components/site/StatusBadge";
 import { QuoteCustomerActions } from "@/components/site/AccountActions";
 import { SpecList } from "@/components/site/SpecList";
+import { OfferDetails } from "@/components/site/OfferDetails";
+import { customerQuoteView } from "@/lib/pricing";
 
 export default async function QuoteDetail({ params }: { params: Promise<{ locale: Locale; id: string }> }) {
   const { locale, id } = await params;
@@ -24,6 +26,8 @@ export default async function QuoteDetail({ params }: { params: Promise<{ locale
   });
   if (!r) notFound();
   const offer = r.offers[0];
+  // customer-safe figures only: never pass the stored details (costs, margin, internal note) to the page
+  const view = offer ? customerQuoteView(offer.details) : null;
 
   return (
     <section className="space-y-6">
@@ -38,21 +42,33 @@ export default async function QuoteDetail({ params }: { params: Promise<{ locale
           {offer && (
             <Card className="border-ok/30 p-6">
               <h2 className="font-semibold text-navy">{t.account.offer}</h2>
+              {offer.source === "AUTO" && (
+                <p className="mt-1 text-xs text-ink-500">{locale === "ar" ? "صادر تلقائيًا حسب قائمة أسعار المصنع المعتمدة." : "Issued automatically from the factory's approved price list."}</p>
+              )}
+              {view && (
+                <div className="mt-4">
+                  <OfferDetails view={view} currency={offer.currency} locale={locale} selected={offer.selectedOption} />
+                </div>
+              )}
               <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-                <div>
-                  <dt className="text-xs text-ink-500">{t.account.unitPrice}</dt>
-                  <dd className="num font-semibold text-navy">{fmtMoney(offer.unitPrice, offer.currency, locale)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-ink-500">{t.studio.quantity}</dt>
-                  <dd className="num font-semibold text-navy">{offer.quantity.toLocaleString("en")}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-ink-500">
-                    {t.account.total} ({t.account.tax} <span className="num">{offer.taxPercent.toString()}%</span>)
-                  </dt>
-                  <dd className="num text-lg font-bold text-navy">{fmtMoney(offer.total, offer.currency, locale)}</dd>
-                </div>
+                {!view && (
+                  <>
+                    <div>
+                      <dt className="text-xs text-ink-500">{t.account.unitPrice}</dt>
+                      <dd className="num font-semibold text-navy">{fmtMoney(offer.unitPrice, offer.currency, locale)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink-500">{t.studio.quantity}</dt>
+                      <dd className="num font-semibold text-navy">{offer.quantity.toLocaleString("en")}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink-500">
+                        {t.account.total} ({t.account.tax} <span className="num">{offer.taxPercent.toString()}%</span>)
+                      </dt>
+                      <dd className="num text-lg font-bold text-navy">{fmtMoney(offer.total, offer.currency, locale)}</dd>
+                    </div>
+                  </>
+                )}
                 {offer.validUntil && (
                   <div>
                     <dt className="text-xs text-ink-500">{t.account.validUntil}</dt>
@@ -76,8 +92,16 @@ export default async function QuoteDetail({ params }: { params: Promise<{ locale
           )}
 
           <Card className="p-6">
-            <QuoteCustomerActions id={r.id} status={r.status} />
-            {r.status === "REVISION_REQUESTED" && <Alert tone="warn" className="mt-3">{t.status.REVISION_REQUESTED}</Alert>}
+            <QuoteCustomerActions
+              id={r.id}
+              status={r.status}
+              options={view && view.options.length > 1 ? view.options.map((o) => ({ quantity: o.quantity, total: fmtMoney(o.total, offer!.currency, locale) })) : undefined}
+            />
+            {r.status === "REVISION_REQUESTED" && (
+              <Alert tone="warn" className="mt-3">
+                {t.status.REVISION_REQUESTED}
+              </Alert>
+            )}
           </Card>
 
           {r.items.map((item) => (
