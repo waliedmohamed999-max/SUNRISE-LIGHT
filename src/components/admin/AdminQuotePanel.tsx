@@ -23,20 +23,15 @@ interface Props {
   assignedToId: string | null;
   staff: { id: string; name: string }[];
   canAssign: boolean;
-  canPrice: boolean;
-  canSend: boolean;
-  defaultQuantity: number;
 }
 
 export function AdminQuotePanel(p: Props) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
   const [statusNote, setStatusNote] = useState("");
   const [note, setNote] = useState({ body: "", internal: true });
-  const [offer, setOffer] = useState({ unitPrice: "", quantity: String(p.defaultQuantity), taxPercent: "", validUntil: "", leadTime: "", terms: "" });
-
   const run = async (key: string, fn: () => Promise<unknown>, ok = t.common.saved) => {
     setBusy(key);
     setMsg(null);
@@ -53,28 +48,6 @@ export function AdminQuotePanel(p: Props) {
       setBusy(null);
     }
   };
-
-  const pricingOpen = ["PRICING", "REVISION_REQUESTED", "QUOTE_SENT"].includes(p.status);
-  const unit = parseFloat(offer.unitPrice);
-  const qty = parseInt(offer.quantity, 10);
-  const tax = parseFloat(offer.taxPercent);
-  const total = unit > 0 && qty > 0 && tax >= 0 ? unit * qty * (1 + (tax >= 0 ? tax : 0) / 100) : null;
-
-  const submitOffer = (send: boolean) =>
-    run(
-      send ? "send" : "offer",
-      () =>
-        call(`/api/admin/rfq/${p.id}/offers`, "POST", {
-          unitPrice: unit,
-          quantity: qty,
-          taxPercent: tax,
-          validUntil: offer.validUntil || null,
-          leadTime: offer.leadTime,
-          terms: offer.terms,
-          send,
-        }),
-      t.admin.offerSaved,
-    );
 
   return (
     <div className="space-y-6">
@@ -147,66 +120,16 @@ export function AdminQuotePanel(p: Props) {
           {t.admin.addNote}
         </Button>
       </Card>
-
-      {p.canPrice && (
-        <Card className="space-y-4 p-6">
-          <h2 className="font-semibold text-navy">{t.admin.pricing}</h2>
-          {!pricingOpen ? (
-            <p className="text-sm text-ink-500">
-              {locale === "ar" ? "انقل الطلب إلى حالة «جارٍ التسعير» لإدخال العرض." : "Move the request to “Pricing in progress” to enter a quotation."}
-            </p>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-2">
-                <Field label={`${t.account.unitPrice} (SAR)`}>
-                  <input type="text" inputMode="decimal" min={0} step="0.001" className={cx(inputClass, "num px-2")} value={offer.unitPrice} onChange={(e) => setOffer({ ...offer, unitPrice: e.target.value })} />
-                </Field>
-                <Field label={t.studio.quantity}>
-                  <input type="text" inputMode="decimal" min={1} className={cx(inputClass, "num px-2")} value={offer.quantity} onChange={(e) => setOffer({ ...offer, quantity: e.target.value })} />
-                </Field>
-                <Field label={`${t.account.tax} %`}>
-                  <input type="text" inputMode="decimal" min={0} max={100} step="0.01" className={cx(inputClass, "num px-2")} value={offer.taxPercent} onChange={(e) => setOffer({ ...offer, taxPercent: e.target.value })} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label={t.account.validUntil}>
-                  <input type="date" className={inputClass} value={offer.validUntil} onChange={(e) => setOffer({ ...offer, validUntil: e.target.value })} />
-                </Field>
-                <Field label={t.account.leadTime}>
-                  <input className={inputClass} value={offer.leadTime} onChange={(e) => setOffer({ ...offer, leadTime: e.target.value })} maxLength={200} />
-                </Field>
-              </div>
-              <Field label={t.account.terms}>
-                <textarea rows={3} className={inputClass} value={offer.terms} onChange={(e) => setOffer({ ...offer, terms: e.target.value })} maxLength={4000} />
-              </Field>
-              <p className="flex justify-between rounded-xl bg-paper px-4 py-3 text-sm">
-                <span className="text-ink-500">{t.account.total}</span>
-                <span className="num font-bold text-navy">{total !== null ? `${total.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} SAR` : "—"}</span>
-              </p>
-              <p className="text-xs text-ink-500">{locale === "ar" ? "يُحسب الإجمالي النهائي على الخادم." : "The final total is computed on the server."}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" disabled={!total || !!busy} onClick={() => submitOffer(false)}>
-                  {busy === "offer" && <Spinner />}
-                  {t.admin.createOffer}
-                </Button>
-                {p.canSend && (
-                  <Button size="sm" variant="accent" disabled={!total || !!busy} onClick={() => window.confirm(`${t.admin.sendOffer}?`) && submitOffer(true)}>
-                    {busy === "send" && <Spinner />}
-                    {t.admin.sendOffer}
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-        </Card>
-      )}
     </div>
   );
 }
 
 export function JsonDownload({ doc, name, label }: { doc: DesignDocument; name: string; label: string }) {
   return (
-    <button className={buttonClass("outline", "sm")} onClick={() => downloadBlob(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }), `${name.replace(/[^\p{L}\p{N}_-]+/gu, "-")}.json`)}>
+    <button
+      className={buttonClass("outline", "sm")}
+      onClick={() => downloadBlob(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }), `${name.replace(/[^\p{L}\p{N}_-]+/gu, "-")}.json`)}
+    >
       {label}
     </button>
   );

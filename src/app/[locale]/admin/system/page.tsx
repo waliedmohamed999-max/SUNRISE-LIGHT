@@ -83,7 +83,7 @@ export default async function AdminSystem({ params }: { params: Promise<{ locale
     { label: ar ? "اعتماد مخططات القص" : "Dieline validation", ok: validated === templates ? true : validated > 0 ? null : false, detail: `${validated} / ${templates} ${ar ? "قالب مفعّل" : "enabled templates"}` },
     { label: ar ? "اعتماد الخامات من المصنع" : "Factory-approved materials", ok: approvedMaterials === materials ? true : approvedMaterials > 0 ? null : false, detail: `${approvedMaterials} / ${materials}` },
     { label: ar ? "بيانات التواصل في الموقع" : "Contact details on the site", ok: contactFilled === 3 ? true : contactFilled ? null : false, detail: `${contactFilled} / 3 ${ar ? "(الهاتف، البريد، العنوان)" : "(phone, email, address)"}` },
-    { label: ar ? "التسعير الآلي" : "Automatic pricing", ok: null, detail: pricingActive ? `${pricingActive} ${ar ? "قاعدة مفعّلة" : "active rules"}` : ar ? "غير مفعّل — التسعير يدوي من فريق المبيعات (مقصود)" : "Off — pricing is manual by sales (by design)" },
+    { label: ar ? "التسعير الآلي" : "Automatic pricing", ok: null, detail: pricingActive ? ar ? "مفعّل — قائمة أسعار المصنع" : "On — factory price list" : ar ? "غير مفعّل — التسعير يدوي من فريق المبيعات؛ يُفعَّل من صفحة «التسعير التلقائي»" : "Off — sales price manually; enable it on the Automatic pricing page" },
   ];
 
   const counts: [string, string | number][] = [

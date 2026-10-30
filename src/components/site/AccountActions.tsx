@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";
-import { Alert, Button, buttonClass, CopyIcon, Field, inputClass, PenIcon, Spinner, TrashIcon } from "@/components/ui";
+import { Alert, Button, buttonClass, CopyIcon, Field, inputClass, PenIcon, Spinner, TrashIcon, cx } from "@/components/ui";
 
 async function send(url: string, method: string, body?: unknown) {
   const res = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
@@ -66,7 +66,13 @@ export function DesignCardActions({ id, name }: { id: string; name: string }) {
         >
           <PenIcon className="size-4" />
         </button>
-        <button disabled={busy} title={t.common.duplicate} aria-label={t.common.duplicate} className="rounded-full p-2 text-navy-500 hover:bg-paper-200" onClick={() => run(() => send(`/api/designs/${id}/duplicate`, "POST"))}>
+        <button
+          disabled={busy}
+          title={t.common.duplicate}
+          aria-label={t.common.duplicate}
+          className="rounded-full p-2 text-navy-500 hover:bg-paper-200"
+          onClick={() => run(() => send(`/api/designs/${id}/duplicate`, "POST"))}
+        >
           {busy ? <Spinner /> : <CopyIcon className="size-4" />}
         </button>
         <button
@@ -83,18 +89,19 @@ export function DesignCardActions({ id, name }: { id: string; name: string }) {
   );
 }
 
-export function QuoteCustomerActions({ id, status }: { id: string; status: string }) {
+export function QuoteCustomerActions({ id, status, options }: { id: string; status: string; options?: { quantity: number; total: string }[] }) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const [mode, setMode] = useState<null | "revision">(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [option, setOption] = useState<number | null>(options ? null : 0);
   const act = async (action: "approve" | "revision" | "cancel") => {
     setBusy(true);
     setError(null);
     try {
-      await send(`/api/rfq/${id}/action`, "POST", { action, message: msg || undefined });
+      await send(`/api/rfq/${id}/action`, "POST", { action, message: msg || undefined, option: action === "approve" && options ? (option ?? undefined) : undefined });
       setMode(null);
       router.refresh();
     } catch (e) {
@@ -129,9 +136,28 @@ export function QuoteCustomerActions({ id, status }: { id: string; status: strin
         </>
       ) : (
         <div className="flex flex-wrap gap-2">
+          {status === "QUOTE_SENT" && options && (
+            <fieldset className="w-full">
+              <legend className="mb-2 text-sm font-semibold text-navy">{locale === "ar" ? "اختر الكمية التي تريد اعتمادها" : "Choose the quantity to approve"}</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {options.map((o, i) => (
+                  <label
+                    key={i}
+                    className={cx("flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm", option === i ? "border-sun bg-sun-100/40" : "border-navy/15")}
+                  >
+                    <input type="radio" name="quote-option" className="sr-only" checked={option === i} onChange={() => setOption(i)} />
+                    <span className="num font-semibold text-navy">
+                      {o.quantity.toLocaleString("en")} {locale === "ar" ? "قطعة" : "pcs"}
+                    </span>
+                    <span className="num text-navy">{o.total}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
           {status === "QUOTE_SENT" && (
             <>
-              <Button size="sm" variant="accent" disabled={busy} onClick={() => act("approve")}>
+              <Button size="sm" variant="accent" disabled={busy || option === null} onClick={() => act("approve")}>
                 {t.account.approve}
               </Button>
               <Button size="sm" variant="outline" disabled={busy} onClick={() => setMode("revision")}>

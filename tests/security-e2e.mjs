@@ -181,6 +181,18 @@ const design = (await a("/api/designs", { method: "POST", json: { name: "Sec des
   check((await b(`/api/designs/${design.id}`, { method: "DELETE" })).status === 404, "B cannot delete A's design");
   check((await b(`/api/designs/${design.id}/duplicate`, { method: "POST" })).status === 404, "B cannot duplicate A's design");
   check((await b(`/api/designs/${design.id}/dieline.svg`)).status === 404, "B cannot download A's dieline");
+}
+
+/* ───────── automatic pricing ───────── */
+{
+  const est = { designId: design.id, quantity: 1000, materialCode: "corrugated-kraft", finishingCodes: [] };
+  check((await anon("/api/pricing/estimate", { method: "POST", json: est })).status === 401, "price estimates require sign-in");
+  check((await b("/api/pricing/estimate", { method: "POST", json: est })).status === 404, "B cannot price A's design");
+  const mine = await a("/api/pricing/estimate", { method: "POST", json: { ...est, unitPrice: 0.001, total: 1 } });
+  check(mine.status === 200 && !("lines" in mine.data) && !("cost" in mine.data) && !("margin" in mine.data), "estimates never expose cost lines or margin to customers");
+  check((await a("/api/admin/pricing")).status === 403, "customers cannot read the price list");
+  check((await a("/api/admin/pricing", { method: "PUT", json: { enabled: true } })).status === 403, "customers cannot change the price list");
+  check((await a("/api/admin/pricing/simulate", { method: "POST", json: {} })).status === 403, "customers cannot run the pricing simulator");
   check((await b(`/api/assets/${logo.id}`)).status === 404, "B cannot download A's logo");
   check((await b("/api/designs", { method: "POST", json: { name: "steal", document: doc } })).status === 422, "B cannot reference A's logo in a design");
   check((await a(`/api/assets/${encodeURIComponent("../../etc/passwd")}`)).status === 404, "path traversal in asset ids is not possible");
@@ -199,7 +211,8 @@ const design = (await a("/api/designs", { method: "POST", json: { name: "Sec des
 
 /* ───────── 8. quotation workflow ───────── */
 await admin("/api/auth/login", { method: "POST", json: { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD } });
-const rfqBody = { designId: design.id, quantity: 1000, printingRequirements: "", materialCode: "corrugated-kraft", finishingCodes: [], deliveryCity: "Riyadh", deliveryLocation: "Security test", contactName: "Sec A", phone: "+966500000000", email: emailA, locale: "en" };
+// quantity 1 stays below any automatic-pricing minimum, so the request starts in NEW for the workflow tests
+const rfqBody = { designId: design.id, quantity: 1, printingRequirements: "", materialCode: "corrugated-kraft", finishingCodes: [], deliveryCity: "Riyadh", deliveryLocation: "Security test", contactName: "Sec A", phone: "+966500000000", email: emailA, locale: "en" };
 const rfq = (await a("/api/rfq", { method: "POST", json: rfqBody })).data.request;
 {
   check((await b("/api/rfq", { method: "POST", json: rfqBody })).status === 404, "B cannot submit an RFQ for A's design");
@@ -217,6 +230,7 @@ const rfq = (await a("/api/rfq", { method: "POST", json: rfqBody })).data.reques
   check(login.status === 200 && hours <= 12.1, `staff sessions are short-lived (${hours.toFixed(1)} h)`);
   check((await tech(`/api/admin/rfq/${rfq.id}`, { method: "PATCH", json: { status: "TECHNICAL_REVIEW" } })).status === 200, "reviewer can move a request into technical review");
   check((await tech(`/api/admin/rfq/${rfq.id}/offers`, { method: "POST", json: { unitPrice: 1, quantity: 1000, taxPercent: 15, send: true } })).status === 403, "reviewer cannot set prices");
+  check((await tech("/api/admin/pricing", { method: "PUT", json: { enabled: true } })).status === 403, "reviewer cannot change the price list");
   check((await tech("/api/admin/users", { method: "POST", json: { name: "x", email: `y-${stamp}@example.com`, password: pw("y"), role: "SUPER_ADMIN" } })).status === 403, "reviewer cannot create users (no vertical escalation)");
   await admin(`/api/admin/rfq/${rfq.id}`, { method: "PATCH", json: { status: "PRICING" } });
   const yesterday = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
@@ -230,6 +244,32 @@ const rfq = (await a("/api/rfq", { method: "POST", json: rfqBody })).data.reques
   await admin(`/api/admin/rfq/${rfq.id}/notes`, { method: "POST", json: { body: `INTERNAL-${stamp}`, internal: true } });
   const notes2 = await a(`/en/account/quotes/${rfq.id}`);
   check(notes.status === 200 && !String(notes2.data).includes(`INTERNAL-${stamp}`), "internal factory notes are never shown to the customer");
+
+  // quote builder: two quantity options, an internal note, and a forged total the server must ignore
+  const build = {
+    lines: [{ id: "p", label: { ar: "منتج", en: "Product" }, basis: "unit", rate: 2, markup: true, show: false }],
+    marginPercent: 25,
+    options: [
+      { quantity: 1000, discountPercent: 0, unitPriceOverride: null },
+      { quantity: 3000, discountPercent: 5, unitPriceOverride: null },
+    ],
+    taxPercent: 15,
+    minOrderTotal: 0,
+    depositPercent: 50,
+    paymentTerms: "",
+    customerNote: "",
+    internalNote: `SECRET-${stamp}`,
+    computed: [{ total: 1 }],
+  };
+  check((await a(`/api/admin/rfq/${rfq.id}/offers`, { method: "POST", json: { build, send: true } })).status === 403, "customers cannot build or send a quotation");
+  const built = await admin(`/api/admin/rfq/${rfq.id}/offers`, { method: "POST", json: { build, validUntil: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10), send: true } });
+  check(built.status === 201, "built two-option quotation sent");
+  const page = String((await a(`/en/account/quotes/${rfq.id}`)).data);
+  // 2 × 1000 × 1.25 = 2 500 + 15 % VAT = 2 875
+  check(page.includes("2,875.00") && !page.includes(`SECRET-${stamp}`), "the server computes the totals and the internal note stays internal");
+  check((await a(`/api/rfq/${rfq.id}/action`, { method: "POST", json: { action: "approve", option: 2 } })).status === 400, "customer cannot approve a quantity option that does not exist");
+  const chosen = await a(`/api/rfq/${rfq.id}/action`, { method: "POST", json: { action: "approve", option: 1 } });
+  check(chosen.status === 200 && chosen.data.status === "APPROVED", "customer approves the chosen quantity option");
 
   // deactivation revokes the session immediately
   await admin("/api/admin/users", { method: "PATCH", json: { id: created.data.user.id, isActive: false } });

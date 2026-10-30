@@ -9,6 +9,8 @@ import { Logo } from "@/components/site/Logo";
 import { fmtDate, fmtMoney } from "@/components/site/StatusBadge";
 import { SpecList } from "@/components/site/SpecList";
 import { PrintButton } from "@/components/site/PrintButton";
+import { OfferDetails } from "@/components/site/OfferDetails";
+import { customerQuoteView } from "@/lib/pricing";
 
 export const metadata = { robots: { index: false } };
 
@@ -32,6 +34,8 @@ export default async function QuotationDocumentPage({ params }: { params: Promis
   const r = offer.request;
   const doc = offer.documents[0];
   const ar = locale === "ar";
+  // the document only ever renders the customer-safe view of a built quotation
+  const view = customerQuoteView(offer.details);
 
   return (
     <div className="theme-paper bg-paper-200 py-10 print:bg-white print:py-0">
@@ -53,8 +57,12 @@ export default async function QuotationDocumentPage({ params }: { params: Promis
             <p className="text-xs font-bold text-ink-500 uppercase">{t.admin.customer}</p>
             <p className="mt-1 font-semibold text-navy">{r.contactName}</p>
             {r.companyName && <p>{r.companyName}</p>}
-            <p className="num" dir="ltr">{r.phone}</p>
-            <p className="num" dir="ltr">{r.email}</p>
+            <p className="num" dir="ltr">
+              {r.phone}
+            </p>
+            <p className="num" dir="ltr">
+              {r.email}
+            </p>
             <p>
               {r.deliveryCity} — {r.deliveryLocation}
             </p>
@@ -82,27 +90,33 @@ export default async function QuotationDocumentPage({ params }: { params: Promis
           ))}
         </section>
 
-        <section className="mt-8">
-          <table className="w-full border-collapse text-sm">
-            <tbody>
-              {[
-                [t.account.unitPrice, fmtMoney(offer.unitPrice, offer.currency, locale)],
-                [t.studio.quantity, offer.quantity.toLocaleString("en")],
-                [ar ? "المجموع قبل الضريبة" : "Subtotal", fmtMoney(offer.subtotal, offer.currency, locale)],
-                [`${t.account.tax} (${offer.taxPercent.toString()}%)`, fmtMoney(Number(offer.total) - Number(offer.subtotal), offer.currency, locale)],
-              ].map(([k, v]) => (
-                <tr key={k} className="border-b border-navy/8">
-                  <td className="py-2 text-ink-500">{k}</td>
-                  <td className="num py-2 text-end font-medium text-navy">{v}</td>
+        {view ? (
+          <section className="mt-8">
+            <OfferDetails view={view} currency={offer.currency} locale={locale} selected={offer.selectedOption} print />
+          </section>
+        ) : (
+          <section className="mt-8">
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {[
+                  [t.account.unitPrice, fmtMoney(offer.unitPrice, offer.currency, locale)],
+                  [t.studio.quantity, offer.quantity.toLocaleString("en")],
+                  [ar ? "المجموع قبل الضريبة" : "Subtotal", fmtMoney(offer.subtotal, offer.currency, locale)],
+                  [`${t.account.tax} (${offer.taxPercent.toString()}%)`, fmtMoney(Number(offer.total) - Number(offer.subtotal), offer.currency, locale)],
+                ].map(([k, v]) => (
+                  <tr key={k} className="border-b border-navy/8">
+                    <td className="py-2 text-ink-500">{k}</td>
+                    <td className="num py-2 text-end font-medium text-navy">{v}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="py-3 font-bold text-navy">{t.account.total}</td>
+                  <td className="num py-3 text-end text-lg font-bold text-navy">{fmtMoney(offer.total, offer.currency, locale)}</td>
                 </tr>
-              ))}
-              <tr>
-                <td className="py-3 font-bold text-navy">{t.account.total}</td>
-                <td className="num py-3 text-end text-lg font-bold text-navy">{fmtMoney(offer.total, offer.currency, locale)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
+              </tbody>
+            </table>
+          </section>
+        )}
 
         {offer.terms && (
           <section className="mt-6">

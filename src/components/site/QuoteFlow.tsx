@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { fmt } from "@/i18n/dictionaries";
 import type { Catalog } from "@/lib/catalog";
@@ -27,6 +27,12 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
   const preview = useRef<DesignPreviewHandle>(null);
 
   const [step, setStep] = useState(0);
+  const stepsRef = useRef<HTMLOListElement>(null);
+  // each step (and the confirmation) starts at the top of the form, not where the previous one ended
+  useEffect(() => {
+    const el = stepsRef.current;
+    if (step > 0 && el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [step]);
   const [spec, setSpec] = useState({
     quantity: doc.quantity ? String(doc.quantity) : "",
     printing: doc.printOption ? PRINT_LABELS[doc.printOption]?.[locale] ?? "" : "",
@@ -38,13 +44,19 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
   const [cust, setCust] = useState({ name: prefill.name, company: prefill.company, phone: prefill.phone, email: prefill.email, location: prefill.address });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<null | "capture" | "send">(null);
-  const [result, setResult] = useState<{ id: string; rfqNumber: string } | null>(null);
+  const [result, setResult] = useState<{ id: string; rfqNumber: string; autoQuoted?: boolean } | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
 
   const material = catalog.materials.find((m) => m.code === spec.materialCode);
   const finishings = catalog.finishings.filter((f) => material?.finishingCodes.includes(f.code));
   const colors = [...new Set(SURFACE_KEYS.map((k) => doc.surfaces[k].background).filter(Boolean))] as string[];
   const req = t.common.required;
+  const estimate = useEstimate(
+    design.id,
+    parseInt(spec.quantity, 10),
+    spec.materialCode || null,
+    spec.finishingCodes.filter((c) => finishings.some((f) => f.code === c)),
+  );
 
   function validateSpec() {
     const e: Record<string, string> = {};
@@ -107,7 +119,7 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
         setFatal(j.error === "invalid_dimensions" ? `${t.common.error} (${j.message})` : j.error === "rate_limited" ? (ar ? "محاولات كثيرة، حاول لاحقاً." : "Too many attempts, try later.") : t.common.error);
         return;
       }
-      setResult(j.request);
+      setResult({ ...j.request, autoQuoted: !!j.autoQuoted });
       setStep(3);
     } catch {
       setFatal(t.common.error);
@@ -133,7 +145,7 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
       </div>
 
       <div>
-        <ol className="mb-8 flex flex-wrap gap-2" aria-label={t.quote.title}>
+        <ol ref={stepsRef} className="mb-8 flex scroll-mt-24 flex-wrap gap-2" aria-label={t.quote.title}>
           {t.quote.steps.map((s, i) => (
             <li key={s} aria-current={i === step ? "step" : undefined} className={cx("flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold", i === step ? "bg-navy text-white" : i < step ? "bg-ok/10 text-ok" : "bg-paper-200 text-ink-500")}>
               <span className="num grid size-5 place-items-center rounded-full bg-white/20">{i < step ? <CheckIcon className="size-3.5" /> : i + 1}</span>
@@ -224,6 +236,7 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
                   </div>
                 </fieldset>
               )}
+              <EstimatePanel e={estimate} />
               <Field label={t.quote.city} error={errors.city}>
                 <input className={inputClass} value={spec.city} onChange={(e) => setSpec({ ...spec, city: e.target.value })} required />
               </Field>
@@ -265,7 +278,15 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
               <Field label={t.quote.location} error={errors.location}>
                 <textarea rows={2} className={inputClass} value={cust.location} onChange={(e) => setCust({ ...cust, location: e.target.value })} autoComplete="street-address" required />
               </Field>
-              <Alert>{t.quote.noPrice}</Alert>
+              {estimate?.ok && estimate.mode === "auto-send" ? (
+                <Alert tone="ok">
+                  {ar
+                    ? `سيصلك عرض السعر فور إرسال الطلب: ${money(estimate.total, estimate.currency, ar)} شامل الضريبة.`
+                    : `You will receive the quotation as soon as you submit: ${money(estimate.total, estimate.currency, ar)} incl. VAT.`}
+                </Alert>
+              ) : (
+                <Alert>{t.quote.noPrice}</Alert>
+              )}
               {fatal && <Alert tone="danger">{fatal}</Alert>}
               <div className="flex justify-between gap-3">
                 <Button type="button" variant="ghost" onClick={() => setStep(1)} disabled={!!submitting}>
@@ -284,11 +305,19 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
               <span className="mx-auto grid size-16 place-items-center rounded-full bg-ok/10 text-ok">
                 <CheckIcon className="size-8" />
               </span>
-              <h2 className="mt-5 text-2xl font-bold text-navy">{t.quote.successTitle}</h2>
-              <p className="mx-auto mt-3 max-w-md leading-relaxed text-ink-500">{fmt(t.quote.successBody, { rfq: result.rfqNumber })}</p>
+              <h2 className="mt-5 text-2xl font-bold text-navy">{result.autoQuoted ? (ar ? "عرض السعر جاهز" : "Your quotation is ready") : t.quote.successTitle}</h2>
+              <p className="mx-auto mt-3 max-w-md leading-relaxed text-ink-500">
+                {result.autoQuoted
+                  ? ar
+                    ? `أصدرنا عرض السعر لطلبك ${result.rfqNumber} حسب قائمة أسعار المصنع. راجعه واعتمده من حسابك.`
+                    : `We issued the quotation for ${result.rfqNumber} from the factory price list. Review and approve it in your account.`
+                  : fmt(t.quote.successBody, { rfq: result.rfqNumber })}
+              </p>
               <p className="num mt-4 text-lg font-bold text-sun-600">{result.rfqNumber}</p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <LinkButton href={`/${locale}/account/quotes/${result.id}`}>{t.quote.viewRequest}</LinkButton>
+                <LinkButton href={`/${locale}/account/quotes/${result.id}`} variant={result.autoQuoted ? "accent" : "primary"}>
+                  {result.autoQuoted ? (ar ? "عرض السعر واعتماده" : "View & approve the quotation") : t.quote.viewRequest}
+                </LinkButton>
                 <Link href={`/${locale}/studio`} className="px-4 py-2.5 text-sm font-semibold text-navy">
                   {t.account.newDesign}
                 </Link>
@@ -297,6 +326,108 @@ export function QuoteFlow({ design, catalog, prefill }: Props) {
           )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+type Estimate =
+  | { available: false }
+  | { available: true; ok: false; reasons: { ar: string; en: string }[] }
+  | {
+      available: true;
+      ok: true;
+      mode: "auto-send" | "review";
+      currency: string;
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+      taxPercent: number;
+      tax: number;
+      total: number;
+      discountPercent: number;
+      nextTier: { minQty: number; discountPercent: number } | null;
+      validityDays: number;
+    };
+
+const money = (n: number, cur: string, ar: boolean) => `${n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ar && cur === "SAR" ? "ر.س" : cur}`;
+
+/** Live price from the factory price list, computed on the server for the customer's own design. */
+function useEstimate(designId: string, quantity: number, materialCode: string | null, finishingCodes: string[]) {
+  const [e, setE] = useState<(Estimate & { loading?: boolean }) | null>(null);
+  const key = JSON.stringify([quantity, materialCode, finishingCodes]);
+  useEffect(() => {
+    if (!Number.isFinite(quantity) || quantity < 1) {
+      setE(null);
+      return;
+    }
+    const ctl = new AbortController();
+    setE((prev) => (prev ? { ...prev, loading: true } : prev));
+    const id = setTimeout(async () => {
+      try {
+        const r = await fetch("/api/pricing/estimate", {
+          method: "POST",
+          signal: ctl.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ designId, quantity, materialCode, finishingCodes }),
+        });
+        setE(r.ok ? await r.json() : null);
+      } catch {
+        /* superseded or offline: no estimate */
+      }
+    }, 400);
+    return () => {
+      clearTimeout(id);
+      ctl.abort();
+    };
+    // the key captures quantity, material and finishing
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [designId, key]);
+  return e && e.available ? e : null;
+}
+
+function EstimatePanel({ e }: { e: ReturnType<typeof useEstimate> }) {
+  const { locale } = useI18n();
+  const ar = locale === "ar";
+  if (!e) return null;
+  if (!e.ok)
+    return (
+      <div className="rounded-2xl border border-dashed border-navy/15 bg-paper p-4 text-sm text-ink-500" aria-live="polite">
+        {ar ? "سيُسعَّر هذا الطلب يدويًا من فريق المبيعات" : "This request will be priced manually by our sales team"}
+        {e.reasons[0] && <span className="mt-1 block text-xs">{e.reasons[0][locale]}</span>}
+      </div>
+    );
+  return (
+    <div className={cx("rounded-2xl border border-sun/40 bg-sun-100/40 p-4 transition-opacity", e.loading && "opacity-60")} aria-live="polite">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-sun-600">{ar ? "السعر التقديري" : "Estimated price"}</p>
+          <p className="num mt-1 text-2xl font-bold text-navy">{money(e.total, e.currency, ar)}</p>
+          <p className="text-xs text-ink-500">
+            {ar ? "شامل ضريبة القيمة المضافة" : "incl. VAT"} <span className="num">{e.taxPercent}%</span>
+          </p>
+        </div>
+        <div className="text-end text-sm">
+          <p className="text-ink-500">{ar ? "سعر القطعة" : "Unit price"}</p>
+          <p className="num font-semibold text-navy">{money(e.unitPrice, e.currency, ar)}</p>
+          {e.discountPercent > 0 && <p className="num text-xs text-ok">{ar ? `خصم كمية ${e.discountPercent}%` : `${e.discountPercent}% quantity discount`}</p>}
+        </div>
+      </div>
+      {e.nextTier && (
+        <p className="mt-3 border-t border-dashed border-navy/15 pt-2 text-xs text-ink-500">
+          {ar
+            ? `اطلب ${e.nextTier.minQty.toLocaleString("en")} قطعة أو أكثر لتحصل على خصم ${e.nextTier.discountPercent}%.`
+            : `Order ${e.nextTier.minQty.toLocaleString("en")}+ pieces for a ${e.nextTier.discountPercent}% discount.`}
+        </p>
+      )}
+      <p className="mt-2 text-[11px] text-ink-500">
+        {e.mode === "auto-send"
+          ? ar
+            ? "يُصدر عرض السعر الرسمي بهذا المبلغ فور إرسال الطلب."
+            : "The official quotation is issued at this amount when you submit."
+          : ar
+            ? "سعر تقديري؛ يؤكده فريق المصنع في عرض السعر."
+            : "An estimate; the factory confirms it in the quotation."}
+      </p>
     </div>
   );
 }

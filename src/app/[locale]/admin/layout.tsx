@@ -20,6 +20,7 @@ export default async function AdminLayout({ children, params }: { children: Reac
   const t = getDict(locale);
   const perms = {
     quotes: can(user.role, "rfq.view"),
+    pricing: can(user.role, "pricing.manage"),
     templates: can(user.role, "template.manage") || can(user.role, "template.validate"),
     categories: can(user.role, "template.manage"),
     materials: can(user.role, "material.manage"),

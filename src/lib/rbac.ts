@@ -9,6 +9,7 @@ const PERMISSIONS = {
   "rfq.price": ["SUPER_ADMIN", "FACTORY_MANAGER", "SALES"],
   "rfq.send": ["SUPER_ADMIN", "FACTORY_MANAGER", "SALES"],
   "rfq.assign": ["SUPER_ADMIN", "FACTORY_MANAGER"],
+  "pricing.manage": ["SUPER_ADMIN", "FACTORY_MANAGER"],
   "template.manage": ["SUPER_ADMIN", "FACTORY_MANAGER"],
   "template.validate": ["SUPER_ADMIN", "FACTORY_MANAGER", "TECH_REVIEWER"],
   "material.manage": ["SUPER_ADMIN", "FACTORY_MANAGER"],
