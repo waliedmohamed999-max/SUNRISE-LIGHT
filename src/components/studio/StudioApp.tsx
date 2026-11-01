@@ -22,13 +22,15 @@ import {
   type TextElement,
 } from "@/design/document";
 import { useAssetImages, useDebouncedEffect, useDesignHistory, useFontsReady } from "@/design/hooks";
+import { watermarkedCopy } from "@/design/watermark";
+import { Logo, LogoMark } from "@/components/site/Logo";
+import { BACKDROPS, BackdropPicker } from "@/components/three/Backdrops";
 import { canvasToBlob, downloadBlob, measureText, renderFinishMaps, renderIsoThumbnail, renderSurfaceCanvases } from "@/design/render";
 import type { FinishMaps } from "@/components/three/BoxModel";
 import { ICONS, type IconKey } from "@/design/icons";
 import type { TextStyle } from "./context";
 import { getEngine, hasErrors, validateDimensions } from "@/packaging/engine";
 import { formatDims } from "@/packaging/sizes";
-import { dielineToSvg } from "@/packaging/svg";
 import { SURFACE_KEYS, type Dimensions, type SurfaceKey, type ValidationIssue } from "@/packaging/types";
 import type { CameraPreset } from "@/components/three/BoxViewer";
 import { fmt } from "@/i18n/dictionaries";
@@ -83,7 +85,7 @@ export interface StudioInitial {
 }
 
 type View = "split" | "2d" | "3d" | "dieline";
-type LeftTab = "templates" | "presets" | "colors" | "text" | "elements" | "uploads" | "material" | "layers";
+type LeftTab = "dims" | "summary" | "templates" | "presets" | "colors" | "text" | "elements" | "uploads" | "material" | "layers";
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error" | "local";
 
 export default function StudioApp({
@@ -122,6 +124,19 @@ export default function StudioApp({
   const [zoom, setZoom] = useState(1);
   const [snap, setSnap] = useState(false);
   const [lidOpen, setLidOpen] = useState(false);
+  const [spinning, setSpinning] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  // the full 3D view starts turning, so the whole product is seen; beside the editor it only turns on request
+  useEffect(() => {
+    if (view === "3d") setSpinning(true);
+  }, [view]);
+  // a phone has room for one view at a time
+  useEffect(() => {
+    if (window.innerWidth < 1024) setView("2d");
+  }, []);
+  const [backdrop, setBackdrop] = useState(BACKDROPS[1].color);
+  const stage3d = useRef<HTMLDivElement>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [preset, setPreset] = useState<{ p: CameraPreset; n: number }>({ p: "iso", n: 0 });
   const [leftTab, setLeftTab] = useState<LeftTab>("templates");
   const [mobileSheet, setMobileSheet] = useState<string | null>(null);
@@ -134,7 +149,7 @@ export default function StudioApp({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
-  const [busy, setBusy] = useState<null | "save" | "quote">(null);
+  const [busy, setBusy] = useState<null | "save" | "quote" | "share">(null);
   const glCanvas = useRef<HTMLCanvasElement | null>(null);
 
   /* ── derived ── */
@@ -687,19 +702,37 @@ export default function StudioApp({
   async function exportPng() {
     const fileBase = name.replace(/[^\p{L}\p{N}_-]+/gu, "-").slice(0, 60) || "design";
     if (view === "3d" && glCanvas.current) {
-      downloadBlob(await canvasToBlob(glCanvas.current), `${fileBase}-3d.png`);
+      downloadBlob(await canvasToBlob(await watermarkedCopy(glCanvas.current)), `${fileBase}-3d.png`);
     } else if (canvasesRef.current) {
-      downloadBlob(await canvasToBlob(renderIsoThumbnail(doc.dimensions, canvasesRef.current, { width: 1600, height: 1200, style: engine.boxStyle })), `${fileBase}.png`);
+      downloadBlob(await canvasToBlob(await watermarkedCopy(renderIsoThumbnail(doc.dimensions, canvasesRef.current, { width: 1600, height: 1200, style: engine.boxStyle }))), `${fileBase}.png`);
     }
   }
 
-  function exportSvg() {
-    const svg = dielineToSvg(dieline, { title: `${template.nameEn} ${doc.dimensions.length}x${doc.dimensions.width}x${doc.dimensions.height}`, locale, validated: template.version.dielineValidated });
-    downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `dieline-${template.code}-${doc.dimensions.length}x${doc.dimensions.width}x${doc.dimensions.height}.svg`);
+  /** Save, then publish the current look as a read-only 3D link; the server burns the watermark into every face. */
+  async function shareLink() {
+    if (!isLoggedIn) return requireLogin();
+    if (hasErrors(dimIssues)) return;
+    const id = await save();
+    if (!id || !canvasesRef.current) return;
+    setBusy("share");
+    try {
+      const fd = new FormData();
+      for (const [key, canvas] of Object.entries(canvasesRef.current)) fd.append(key, await canvasToBlob(canvas), `${key}.png`);
+      const res = await fetch(`/api/designs/${id}/share`, { method: "POST", body: fd });
+      if (!res.ok) throw new Error(String(res.status));
+      setShareUrl(`${window.location.origin}/${locale}/view/${(await res.json()).token}`);
+    } catch {
+      setToast({ tone: "danger", text: t.common.error });
+    } finally {
+      setBusy(null);
+    }
   }
 
-  function exportJson() {
-    downloadBlob(new Blob([JSON.stringify({ name, document: doc }, null, 2)], { type: "application/json" }), `${template.code}-design.json`);
+  async function revokeLink() {
+    if (!designId) return;
+    const res = await fetch(`/api/designs/${designId}/share`, { method: "DELETE" });
+    setToast(res.ok ? { tone: "ok", text: locale === "ar" ? "تم إيقاف الرابط" : "Link stopped" } : { tone: "danger", text: t.common.error });
+    if (res.ok) setShareUrl(null);
   }
 
   /* ── keyboard shortcuts ── */
@@ -798,6 +831,7 @@ export default function StudioApp({
 
   const leftTabs: { key: LeftTab; label: string; Icon: typeof BoxIcon }[] = [
     { key: "templates", label: t.studio.templates, Icon: BoxIcon },
+    { key: "dims", label: t.studio.dimensions, Icon: RulerIcon },
     { key: "presets", label: locale === "ar" ? "تصاميم جاهزة" : "Ready designs", Icon: SparkIcon },
     { key: "colors", label: t.studio.colors, Icon: PaletteIcon },
     { key: "text", label: t.studio.text, Icon: TextIcon },
@@ -805,9 +839,17 @@ export default function StudioApp({
     { key: "uploads", label: t.studio.uploads, Icon: UploadIcon },
     { key: "material", label: t.studio.material, Icon: SettingsIcon },
     { key: "layers", label: t.studio.layers, Icon: LayersIcon },
+    { key: "summary", label: t.studio.summary, Icon: EyeIcon },
   ];
   const PANELS: Record<string, () => React.ReactNode> = {
     templates: () => <TemplatesPanel />,
+    dims: () => (
+      <div className="space-y-6">
+        <DimensionsPanel />
+        <SurfacesPanel />
+      </div>
+    ),
+    summary: () => <SummaryPanel issues={allIssues.filter((i) => !dimIssues.includes(i))} />,
     presets: () => <PresetsPanel />,
     colors: () => <ColorsPanel />,
     text: () => <TextPanel />,
@@ -832,19 +874,25 @@ export default function StudioApp({
     <StudioContext.Provider value={api}>
       {/* white workspace for the studio, its dialogs and toasts */}
       <div className="theme-light contents">
-      <div className="flex h-[calc(100dvh-4.5rem)] min-h-[560px] flex-col bg-paper">
+      {/* a full-screen workspace: the site's navigation gives way so the design area gets the room */}
+      <div className="fixed inset-0 z-40 flex flex-col bg-[#eceef3]">
         {/* ── Top toolbar ── */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-navy/8 bg-white px-3 py-2 sm:flex-nowrap">
+        <div className="flex items-center gap-1.5 border-b border-navy/8 bg-white px-2 py-1.5 sm:gap-2 sm:px-3">
+          <Link href={`/${locale}`} aria-label={locale === "ar" ? "الرئيسية" : "Home"} className="shrink-0 rounded-lg p-1 hover:bg-paper-200">
+            <Logo locale={locale} variant="light" className="hidden h-8 w-auto sm:block" />
+            <LogoMark className="h-8 sm:hidden" />
+          </Link>
+          <span className="hidden h-6 w-px bg-navy/10 sm:block" />
           <input
             aria-label={t.studio.nameDesign}
             value={name}
             onChange={(e) => setName(e.target.value.slice(0, 120))}
-            className="w-full min-w-0 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-navy hover:border-navy/10 focus:border-sun focus:outline-none sm:w-56"
+            className="w-0 min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-navy hover:border-navy/10 focus:border-sun focus:outline-none sm:w-56 sm:flex-none"
           />
           <span className={cx("hidden text-xs sm:inline", saveState === "error" ? "text-danger" : "text-ink-500")} aria-live="polite">
             {statusText}
           </span>
-          <div className="mx-auto flex items-center gap-0.5">
+          <div className="mx-auto hidden items-center gap-0.5 lg:flex">
             <ToolButton label={t.studio.undo} onClick={undo} disabled={!history.canUndo}>
               <UndoIcon className="size-4 rtl:-scale-x-100" />
             </ToolButton>
@@ -864,25 +912,29 @@ export default function StudioApp({
             >
               <EyeIcon className="size-4" />
             </ToolButton>
-            <ExportMenu onPng={exportPng} onSvg={exportSvg} onJson={exportJson} />
+            <ExportMenu onPng={exportPng} />
             <ToolButton label={locale === "ar" ? "اختصارات لوحة المفاتيح" : "Keyboard shortcuts"} onClick={() => setShortcutsOpen(true)}>
               <span className="text-sm font-bold">?</span>
             </ToolButton>
           </div>
+          <Button variant="outline" size="sm" onClick={() => void shareLink()} disabled={busy !== null || hasErrors(dimIssues)}>
+            {busy === "share" ? <Spinner /> : <EyeIcon className="size-4" />}
+            <span className="hidden md:inline">{locale === "ar" ? "رابط 3D" : "3D link"}</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => void save()} disabled={busy !== null || hasErrors(dimIssues)}>
             {busy === "save" ? <Spinner /> : <SaveIcon className="size-4" />}
             <span className="hidden md:inline">{t.studio.save}</span>
           </Button>
           <Button variant="accent" size="sm" onClick={() => void requestQuote()} disabled={busy !== null || hasErrors(dimIssues)}>
             {busy === "quote" ? <Spinner /> : null}
-            <span>{t.studio.requestQuote}</span>
+            <span className="whitespace-nowrap">{t.studio.requestQuote}</span>
           </Button>
         </div>
 
         <StepsBar
           steps={[
             { label: locale === "ar" ? "الشكل" : "Shape", done: true, tab: "templates" },
-            { label: locale === "ar" ? "المقاس" : "Size", done: !hasErrors(dimIssues), tab: "templates" },
+            { label: locale === "ar" ? "المقاس" : "Size", done: !hasErrors(dimIssues), tab: "dims" },
             { label: locale === "ar" ? "الألوان" : "Colours", done: SURFACE_KEYS.some((k) => doc.surfaces[k].background), tab: "colors" },
             { label: locale === "ar" ? "الشعار والنص" : "Logo & text", done: SURFACE_KEYS.some((k) => doc.surfaces[k].elements.length > 0), tab: "uploads" },
             {
@@ -894,35 +946,73 @@ export default function StudioApp({
           ]}
           onStep={(tab) => {
             setLeftTab(tab as LeftTab);
+            setPanelOpen(true);
             setMobileSheet(tab);
           }}
           cta={locale === "ar" ? "جاهز؟ اطلب عرض السعر" : "Ready? Request a quote"}
           onCta={() => void requestQuote()}
         />
+        {shareUrl && (
+          <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShareUrl(null)}>
+            <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-bold text-navy">{locale === "ar" ? "رابط المعاينة ثلاثية الأبعاد" : "3D preview link"}</h2>
+              <p className="mt-1 text-sm text-ink-500">
+                {locale === "ar" ? "أي شخص معه الرابط يقدر يتفرج على المنتج ويلفّه فقط، وعليه علامة مائية باللوجو. لا يوصل لملفات التصميم. الرابط شغال 10 أيام، وكل ضغطة على «رابط 3D» تحدّث التصميم بنفس الرابط وتبدأ الـ10 أيام من جديد." : "Anyone with the link can view and spin the product only, watermarked with the logo. The link works for 10 days; pressing “3D link” again updates the design on the same link and restarts the 10 days."}
+              </p>
+              <input readOnly dir="ltr" value={shareUrl} onFocus={(e) => e.currentTarget.select()} className="mt-4 w-full rounded-xl border border-navy/15 bg-paper px-3 py-2 text-xs text-navy" />
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button size="sm" variant="accent" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => setToast({ tone: "ok", text: locale === "ar" ? "تم نسخ الرابط" : "Link copied" }))}>
+                  {locale === "ar" ? "نسخ الرابط" : "Copy link"}
+                </Button>
+                <a href={`https://wa.me/?text=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noreferrer" className={buttonClass("outline", "sm")}>
+                  {locale === "ar" ? "إرسال واتساب" : "Send on WhatsApp"}
+                </a>
+                <a href={shareUrl} target="_blank" rel="noreferrer" className={buttonClass("outline", "sm")}>
+                  {locale === "ar" ? "فتح" : "Open"}
+                </a>
+                <Button size="sm" variant="outline" onClick={() => void revokeLink()}>
+                  {locale === "ar" ? "إيقاف الرابط" : "Stop link"}
+                </Button>
+                <Button size="sm" variant="outline" className="ms-auto" onClick={() => setShareUrl(null)}>
+                  {locale === "ar" ? "إغلاق" : "Close"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex min-h-0 flex-1">
           {/* ── Left sidebar (desktop) ── */}
           {!focusMode && (
-            <aside className="hidden w-[340px] shrink-0 border-e border-navy/8 bg-white lg:flex">
-              <nav aria-label={t.studio.tools} className="flex w-[76px] shrink-0 flex-col gap-1 border-e border-navy/6 p-2">
+            <aside className="hidden shrink-0 border-e border-navy/8 bg-white lg:flex">
+              <nav aria-label={t.studio.tools} className="flex w-[72px] shrink-0 flex-col gap-0.5 overflow-y-auto border-e border-navy/6 p-1.5">
                 {leftTabs.map(({ key, label, Icon }) => (
                   <button
                     key={key}
-                    onClick={() => setLeftTab(key)}
-                    aria-pressed={leftTab === key}
-                    className={cx("flex flex-col items-center gap-1 rounded-xl px-1 py-2.5 text-[10px] font-semibold", leftTab === key ? "bg-navy text-white" : "text-ink-500 hover:bg-paper-200")}
+                    // the open tab closes the panel again, handing its width to the design area
+                    onClick={() => {
+                      setPanelOpen(key !== leftTab || !panelOpen);
+                      setLeftTab(key);
+                    }}
+                    aria-pressed={panelOpen && leftTab === key}
+                    className={cx("flex flex-col items-center gap-1 rounded-xl px-1 py-2.5 text-[10px] font-semibold", panelOpen && leftTab === key ? "bg-navy text-white" : "text-ink-500 hover:bg-paper-200")}
                   >
                     <Icon className="size-5" />
                     {label}
                   </button>
                 ))}
               </nav>
-              <div className="min-w-0 flex-1 overflow-y-auto p-4">{leftPanel(leftTab)}</div>
+              {(panelOpen || selectedId) && (
+                <div className="w-[290px] space-y-5 overflow-y-auto p-4">
+                  <InspectorPanel />
+                  {panelOpen && leftPanel(leftTab)}
+                </div>
+              )}
             </aside>
           )}
 
           {/* ── Centre ── */}
           <section className="flex min-w-0 flex-1 flex-col" aria-label={t.studio.preview}>
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-2">
               <div role="tablist" className="flex rounded-full bg-white p-1 shadow-sm">
                 {views.map(({ key, label, Icon }) => (
                   <button
@@ -930,14 +1020,27 @@ export default function StudioApp({
                     role="tab"
                     aria-selected={view === key}
                     onClick={() => setView(key)}
-                    className={cx("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold", view === key ? "bg-navy text-white" : "text-ink-500 hover:text-navy")}
+                    className={cx("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold", key === "split" && "hidden lg:flex", view === key ? "bg-navy text-white" : "text-ink-500 hover:text-navy")}
                   >
                     <Icon className="size-4" />
                     <span className="hidden sm:inline">{label}</span>
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-sm">
+              {/* on phones the top bar is too short for these */}
+              <div className="flex items-center gap-0.5 rounded-full bg-white p-0.5 shadow-sm lg:hidden">
+                <ToolButton label={t.studio.undo} onClick={undo} disabled={!history.canUndo}>
+                  <UndoIcon className="size-4 rtl:-scale-x-100" />
+                </ToolButton>
+                <ToolButton label={t.studio.redo} onClick={redo} disabled={!history.canRedo}>
+                  <RedoIcon className="size-4 rtl:-scale-x-100" />
+                </ToolButton>
+                <ToolButton label={t.studio.reset} onClick={resetDesign}>
+                  <ResetIcon className="size-4" />
+                </ToolButton>
+                <ExportMenu onPng={exportPng} />
+              </div>
+              <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-white p-1 whitespace-nowrap shadow-sm">
                 {(view === "3d" || view === "split") && (
                   <>
                     {(["front", "back", "side", "top"] as const).map((p) => (
@@ -947,6 +1050,13 @@ export default function StudioApp({
                     ))}
                     <ToolButton label={t.studio.cameraReset} onClick={() => setPreset({ p: "iso", n: preset.n + 1 })}>
                       <RotateIcon className="size-4" />
+                    </ToolButton>
+                    <button onClick={() => setSpinning((s) => !s)} aria-pressed={spinning} className={cx("num rounded-full px-2.5 py-1 text-xs font-semibold", spinning ? "bg-navy text-white" : "text-ink-500 hover:bg-paper-200")}>
+                      360°
+                    </button>
+                    <BackdropPicker value={backdrop} onChange={setBackdrop} locale={locale} />
+                    <ToolButton label={locale === "ar" ? "ملء الشاشة" : "Fullscreen"} onClick={() => void (document.fullscreenElement ? document.exitFullscreen() : stage3d.current?.requestFullscreen())}>
+                      <EyeIcon className="size-4" />
                     </ToolButton>
                     {(engine.boxStyle === "mailer" || engine.boxStyle === "tuck") && (
                       <button onClick={() => setLidOpen((o) => !o)} className="rounded-full bg-sun-100 px-3 py-1 text-xs font-semibold text-sun-600">
@@ -976,7 +1086,7 @@ export default function StudioApp({
               </div>
             </div>
 
-            <div className={cx("relative m-3 min-h-0 flex-1 gap-3", view === "split" ? "grid grid-rows-2 lg:grid-cols-2 lg:grid-rows-1" : "flex")}>
+            <div className={cx("relative m-2 min-h-0 flex-1 gap-2", view === "split" ? "grid grid-rows-2 lg:grid-cols-2 lg:grid-rows-1" : "flex")}>
               {(view === "2d" || view === "split") && (
                 <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-navy/10 bg-white bg-grid shadow-sm">
                   {printable(surfaceKey) ? (
@@ -1000,8 +1110,8 @@ export default function StudioApp({
                     <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-ink-500">{t.studio.notPrintable}</div>
                   )}
                   {printable(surfaceKey) && doc.surfaces[surfaceKey].elements.length === 0 && (
-                    <div className="absolute inset-x-3 bottom-3 flex flex-wrap items-center justify-center gap-2 rounded-xl border border-navy/10 bg-white/95 p-2 shadow-sm backdrop-blur">
-                      <span className="px-1 text-[11px] text-ink-500">{locale === "ar" ? "هذا الوجه فارغ — ابدأ بـ:" : "This face is empty — start with:"}</span>
+                    <div className="absolute inset-x-2 bottom-2 flex items-center gap-2 overflow-x-auto rounded-xl lg:inset-x-3 lg:bottom-3 lg:flex-wrap lg:justify-center border border-navy/10 bg-white/95 p-2 shadow-sm backdrop-blur">
+                      <span className="hidden px-1 text-[11px] text-ink-500 lg:inline">{locale === "ar" ? "هذا الوجه فارغ — ابدأ بـ:" : "This face is empty — start with:"}</span>
                       {[
                         { label: locale === "ar" ? "تصميم جاهز" : "Ready design", tab: "presets" },
                         { label: locale === "ar" ? "شعارك" : "Your logo", tab: "uploads" },
@@ -1009,7 +1119,7 @@ export default function StudioApp({
                         { label: locale === "ar" ? "عناصر" : "Elements", tab: "elements" },
                         { label: locale === "ar" ? "لون" : "Colour", tab: "colors" },
                       ].map((b) => (
-                        <button key={b.tab} onClick={() => (setLeftTab(b.tab as LeftTab), setMobileSheet(b.tab))} className="rounded-full border border-navy/15 px-3 py-1 text-[11px] font-medium text-navy hover:border-sun hover:bg-sun-100">
+                        <button key={b.tab} onClick={() => (setLeftTab(b.tab as LeftTab), setPanelOpen(true), setMobileSheet(b.tab))} className="shrink-0 whitespace-nowrap rounded-full border border-navy/15 px-3 py-1 text-[11px] font-medium text-navy hover:border-sun hover:bg-sun-100">
                           {b.label}
                         </button>
                       ))}
@@ -1021,10 +1131,12 @@ export default function StudioApp({
                 </div>
               )}
               {(view === "3d" || view === "split") && (
-                <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-navy/10 bg-paper shadow-sm">
+                <div ref={stage3d} className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-navy/10 bg-paper shadow-sm">
                   <BoxViewer
                     className="absolute inset-0"
                     theme="light"
+                    background={backdrop}
+                    autoRotate={spinning}
                     dims={doc.dimensions}
                     boxStyle={engine.boxStyle}
                     canvases={canvasesRef.current}
@@ -1041,7 +1153,7 @@ export default function StudioApp({
                     onCanvas={(c) => (glCanvas.current = c)}
                     fallback={<div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-ink-500">{t.studio.webglFallback}</div>}
                   />
-                  <span className="pointer-events-none absolute inset-x-0 top-3 mx-auto w-fit rounded-full bg-white/90 px-3 py-1 text-[11px] text-ink-500 shadow-sm">
+                  <span className="pointer-events-none absolute inset-x-0 top-3 mx-auto hidden w-fit rounded-full bg-white/90 px-3 py-1 text-[11px] text-ink-500 shadow-sm lg:block">
                     {locale === "ar" ? "اضغط على أي وجه لتعديله · اسحب للتدوير" : "Click any face to edit it · drag to rotate"}
                   </span>
                 </div>
@@ -1052,7 +1164,12 @@ export default function StudioApp({
                 </div>
               )}
 
-              <div className="pointer-events-none absolute start-3 bottom-3 flex flex-wrap items-center gap-2">
+              {selectedId && !mobileSheet && (
+                <button onClick={() => setMobileSheet("inspector")} className={buttonClass("accent", "sm", "absolute start-3 top-3 z-10 lg:hidden")}>
+                  {locale === "ar" ? "تعديل العنصر" : "Edit element"}
+                </button>
+              )}
+              <div className={cx("pointer-events-none absolute start-3 bottom-3 flex-wrap items-center gap-2", view === "3d" ? "flex" : "hidden lg:flex")}>
                 <span className="num rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-navy shadow-sm">
                   {formatDims(doc.dimensions, engine.boxStyle)}
                 </span>
@@ -1066,7 +1183,7 @@ export default function StudioApp({
             </div>
 
             {/* surface strip */}
-            <div className="flex gap-1.5 overflow-x-auto px-3 pb-3">
+            <div className="flex justify-center gap-1.5 overflow-x-auto px-2 pb-2">
               {specs.map((s) => (
                 <button
                   key={s.key}
@@ -1087,29 +1204,13 @@ export default function StudioApp({
             </div>
           </section>
 
-          {/* ── Right sidebar (desktop) ── */}
-          {!focusMode && (
-            <aside className="hidden w-[320px] shrink-0 space-y-6 overflow-y-auto border-s border-navy/8 bg-white p-4 xl:block">
-              <InspectorPanel />
-              <DimensionsPanel />
-              <SurfacesPanel />
-              <SummaryPanel issues={allIssues.filter((i) => !dimIssues.includes(i))} />
-            </aside>
-          )}
-          {/* On lg (no xl), right column content is reachable via the left "material" tab and mobile sheet */}
-          {!focusMode && (
-            <aside className="hidden w-[300px] shrink-0 space-y-6 overflow-y-auto border-s border-navy/8 bg-white p-4 lg:block xl:hidden">
-              <InspectorPanel />
-              <DimensionsPanel />
-              <SummaryPanel issues={allIssues.filter((i) => !dimIssues.includes(i))} />
-            </aside>
-          )}
-        </div>
+          </div>
 
         {/* ── Mobile bottom bar + sheets ── */}
-        <div className="border-t border-navy/8 bg-white lg:hidden">
+        <div className="relative border-t border-navy/8 bg-white lg:hidden">
+          {/* opens over the stage, which keeps its size behind it */}
           {mobileSheet && (
-            <div className="max-h-[46dvh] overflow-y-auto border-b border-navy/8 p-4">
+            <div className="absolute inset-x-0 bottom-full z-30 max-h-[56dvh] overflow-y-auto rounded-t-2xl border-t border-navy/10 bg-white p-4 shadow-[0_-12px_32px_rgba(16,24,40,0.18)]">
               <div className="mb-2 flex justify-end">
                 <button onClick={() => setMobileSheet(null)} aria-label={t.nav.close} className="rounded-full p-1.5 text-ink-500 hover:bg-paper-200">
                   <XIcon className="size-5" />
@@ -1132,15 +1233,13 @@ export default function StudioApp({
           )}
           <nav aria-label={t.studio.tools} className="flex overflow-x-auto">
             {[
-              { key: "dims", label: t.studio.dimensions, Icon: RulerIcon },
               ...leftTabs,
-              { key: "summary", label: t.studio.summary, Icon: EyeIcon },
             ].map(({ key, label, Icon }) => (
               <button
                 key={key}
                 onClick={() => setMobileSheet((s) => (s === key ? null : key))}
                 aria-pressed={mobileSheet === key}
-                className={cx("flex min-w-[72px] flex-1 flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold", mobileSheet === key ? "text-sun-600" : "text-ink-500")}
+                className={cx("flex min-w-[64px] flex-1 flex-col items-center gap-1 px-1.5 py-2 text-[10px] font-semibold", mobileSheet === key ? "text-sun-600" : "text-ink-500")}
               >
                 <Icon className="size-5" />
                 {label}
@@ -1235,7 +1334,7 @@ function ToolButton({ label, onClick, disabled, active, children }: { label: str
   );
 }
 
-function ExportMenu({ onPng, onSvg, onJson }: { onPng: () => void; onSvg: () => void; onJson: () => void }) {
+function ExportMenu({ onPng }: { onPng: () => void }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1265,8 +1364,6 @@ function ExportMenu({ onPng, onSvg, onJson }: { onPng: () => void; onSvg: () => 
       {open && (
         <div role="menu" className="absolute end-0 top-11 z-30 w-56 rounded-xl border border-navy/10 bg-white p-1.5 shadow-[var(--shadow-lift)]">
           {item(t.studio.exportPng, onPng)}
-          {item(t.studio.exportSvg, onSvg)}
-          {item(t.studio.exportJson, onJson)}
         </div>
       )}
     </div>

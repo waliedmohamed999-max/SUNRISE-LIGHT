@@ -21,6 +21,8 @@ const BoxViewer = dynamic(() => import("@/components/three/BoxViewer"), {
 export interface DesignPreviewHandle {
   /** Isometric PNG of the design, rendered without WebGL. */
   isoCanvas: () => HTMLCanvasElement | null;
+  /** The rendered artwork of every face. */
+  faces: () => Record<SurfaceKey, HTMLCanvasElement> | null;
 }
 
 /** Read-only 3D preview of a stored design document. */
@@ -39,6 +41,7 @@ export const DesignPreview = forwardRef<DesignPreviewHandle, { doc: DesignDocume
     }, [doc, specs, materialColor, textured, images, version, fonts]);
 
     useImperativeHandle(ref, () => ({
+      faces: () => canvases.current,
       isoCanvas: () => (canvases.current ? renderIsoThumbnail(doc.dimensions, canvases.current, { width: 960, height: 720, style: engine.boxStyle }) : null),
     }));
 

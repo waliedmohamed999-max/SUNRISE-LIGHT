@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { BoxModel } from "./BoxModel";
+import { liftWhite } from "@/components/experience/lift";
 import { brandMarkReady, cupCanvas, SHOWCASE_DIMS, showcaseCanvases, stickerSheetCanvas, stickerStripCanvas, type ShowcaseKind } from "./showcase";
 
 /** Stage kinds: the packaging showcase plus the sticker roll & sheet. */
@@ -131,6 +132,15 @@ function Turntable({ targetY, still, children }: { targetY: number; still: boole
   );
 }
 
+/** The stage's warm lights turn white board brown; a little self-illumination keeps it white. */
+function WhiteBoard({ children }: { children: React.ReactNode }) {
+  const group = useRef<THREE.Group>(null);
+  useEffect(() => {
+    if (group.current) liftWhite(group.current, 0.5);
+  }, []);
+  return <group ref={group}>{children}</group>;
+}
+
 function Product({ kind, lidOpen }: { kind: StageKind; lidOpen: boolean }) {
   const canvases = useMemo(() => (kind === "cup" || kind === "stickers" ? null : showcaseCanvases(kind)), [kind]);
   if (kind === "cup") return <Cup />;
@@ -193,10 +203,10 @@ export default function ProductStage({ kind, className, presenting = false }: { 
             <DarkroomLights />
             {presenting ? (
               <Turntable targetY={targetY} still={still}>
-                <Product kind={kind} lidOpen={lidOpen} />
+                <WhiteBoard><Product kind={kind} lidOpen={lidOpen} /></WhiteBoard>
               </Turntable>
             ) : (
-              <Product kind={kind} lidOpen={lidOpen} />
+              <WhiteBoard><Product kind={kind} lidOpen={lidOpen} /></WhiteBoard>
             )}
             <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, -0.006, 0]}>
               <planeGeometry args={[30, 30]} />

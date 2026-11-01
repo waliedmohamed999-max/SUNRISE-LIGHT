@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { HttpError, requireUser } from "@/lib/auth";
+import { can } from "@/lib/rbac";
 import { db } from "@/lib/db";
 import { loadDesignFor } from "@/lib/designs";
 import { designDocumentSchema } from "@/design/document";
@@ -10,6 +11,8 @@ import { dielineToSvg } from "@/packaging/svg";
 export const GET = api<{ id: string }>(async (req, { params }) => {
   const { id } = await params;
   const user = await requireUser();
+  // production files are for the factory: downloadable from the dashboard only
+  if (!can(user.role, "rfq.view")) throw new HttpError(404, "not_found");
   const design = await loadDesignFor(user, id, "read");
   const versionId = req.nextUrl.searchParams.get("version");
   const raw = versionId ? (await db.designVersion.findFirstOrThrow({ where: { id: versionId, projectId: design.id } })).document : design.document;

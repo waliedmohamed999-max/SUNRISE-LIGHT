@@ -27,7 +27,7 @@ function FluteSection({ flute, max }: { flute: Flute; max: number }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-24 w-full" aria-hidden>
       {liners.map((y, i) => (
-        <rect key={i} x={0} y={y} width={W} height={t} fill={i === 0 ? "#EA5B32" : "#C29262"} />
+        <rect key={i} x={0} y={y} width={W} height={t} fill={i === 0 ? "#F7F4EE" : "#C29262"} />
       ))}
       {Array.from({ length: walls }, (_, i) => (
         <path key={i} d={wave(liners[i] + t, wallH)} fill="none" stroke="#B8854F" strokeWidth={1.6} />

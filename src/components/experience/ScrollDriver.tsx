@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import Lenis from "lenis";
 import { CINEMA_SCREENS, clamp, timeline } from "./scroll";
+import { opening, openingOverlay } from "./opening";
 
 type Styler = (s: number) => void;
 const stylers = new Set<Styler>();
@@ -33,6 +34,7 @@ export function ScrollDriver({ hint }: { hint: string }) {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const lenis = reduced ? null : new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, smoothWheel: true });
     if (process.env.NODE_ENV !== "production") (window as unknown as { __slTimeline: typeof timeline }).__slTimeline = timeline;
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __slOpening: typeof opening }).__slOpening = opening;
     let raf = 0;
     const loop = (t: number) => {
       lenis?.raf(t);
@@ -44,7 +46,7 @@ export function ScrollDriver({ hint }: { hint: string }) {
       const max = document.documentElement.scrollHeight - timeline.vh;
       if (bar.current) bar.current.style.transform = `translateY(${clamp(timeline.y / Math.max(1, max)) * (timeline.vh - 160)}px)`;
       // visible through the cinematic part, gone once regular content starts
-      if (hintRef.current) hintRef.current.style.opacity = String(1 - clamp((s - (CINEMA_SCREENS - 1.4)) / 0.6));
+      if (hintRef.current) hintRef.current.style.opacity = String((1 - clamp((s - (CINEMA_SCREENS - 1.4)) / 0.6)) * openingOverlay());
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);

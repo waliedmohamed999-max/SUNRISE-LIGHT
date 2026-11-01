@@ -21,11 +21,15 @@ const PRESETS: Record<CameraPreset, [number, number, number]> = {
 function CameraRig({ preset, nonce, controls, targetY }: { preset: CameraPreset; nonce: number; controls: React.RefObject<OrbitControlsImpl | null>; targetY: number }) {
   const { camera } = useThree();
   const invalidate = useThree((s) => s.invalidate);
+  // narrow frames need the camera further back, or the product is cut off at the sides
+  const aspect = useThree((s) => s.size.width / s.size.height);
+  const reach = Math.min(1.9, Math.max(1, 1.1 / aspect));
   useEffect(() => {
-    camera.position.set(...PRESETS[preset]);
+    const [x, y, z] = PRESETS[preset];
+    camera.position.set(x * reach, y * reach, z * reach);
     controls.current?.update();
     invalidate();
-  }, [preset, nonce, camera, controls, invalidate]);
+  }, [preset, nonce, reach, camera, controls, invalidate]);
   useEffect(() => {
     controls.current?.target.set(0, targetY, 0);
     controls.current?.update();
@@ -52,9 +56,11 @@ export interface BoxViewerProps extends BoxModelProps {
   className?: string;
   /** "light" = bright studio backdrop (design studio); default dark room (site) */
   theme?: "dark" | "light";
+  /** Backdrop colour; defaults to the theme's */
+  background?: string;
 }
 
-export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate, interactive = true, onCanvas, fallback, className, theme = "dark", ...model }: BoxViewerProps) {
+export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate, interactive = true, onCanvas, fallback, className, theme = "dark", background, ...model }: BoxViewerProps) {
   const light = theme === "light";
   // rebuild the baked ground shadow only once the size stops changing
   const dimsKey = `${model.dims.length}x${model.dims.width}x${model.dims.height}`;
@@ -77,7 +83,7 @@ export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate,
       {/* render on demand (orbit, edits, lid animation) instead of 60 fps; auto-rotating previews keep a continuous loop */}
       <Canvas frameloop={autoRotate ? "always" : "demand"} dpr={[1, 1.5]} camera={{ position: PRESETS[preset], fov: 35 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
         <Suspense fallback={null}>
-          <color attach="background" args={[light ? "#f1f2f7" : "#100904"]} />
+          <color attach="background" args={[background ?? (light ? "#f1f2f7" : "#100904")]} />
           <hemisphereLight args={light ? ["#ffffff", "#d9dcea", 1.1] : ["#ffe9d2", "#2a1a10", 0.55]} />
           <DarkroomLights />
           {/* procedural studio reflections (no downloads) so foil and spot UV read correctly */}
@@ -93,7 +99,7 @@ export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate,
           {/* baked once per size (frames={1}); re-mounted when dimensions change */}
           {/* just below the floor: a shadow plane at the floor height z-fights with the inside of open boxes */}
           <ContactShadows key={shadowKey} frames={1} resolution={256} position={[0, -0.006, 0]} opacity={light ? 0.35 : 0.7} scale={9} blur={2.6} far={4} color={light ? "#1d2235" : "#000000"} />
-          <OrbitControls ref={controls} makeDefault enabled={interactive} enablePan={false} minDistance={2.5} maxDistance={12} target={[0, targetY, 0]} autoRotate={autoRotate} autoRotateSpeed={0.8} maxPolarAngle={Math.PI * 0.95} />
+          <OrbitControls ref={controls} makeDefault enabled={interactive} enablePan={false} minDistance={2.5} maxDistance={12} target={[0, targetY, 0]} autoRotate={autoRotate} autoRotateSpeed={3} maxPolarAngle={Math.PI * 0.95} />
           <CameraRig preset={preset} nonce={presetNonce} controls={controls} targetY={targetY} />
           <Capture onCanvas={onCanvas} />
         </Suspense>

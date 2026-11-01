@@ -11,6 +11,7 @@ import { Chapter, DimensionCounter, KineticText, useHorizontalScrub } from "./Ov
 import { Blueprint } from "./Blueprint";
 import { CH, CINEMA_SCREENS, window4 } from "./scroll";
 import { featureAt, finishStageAt, lightAt } from "./story";
+import { openingOverlay } from "./opening";
 
 const ExperienceScene = dynamic(() => import("./ExperienceScene"), { ssr: false });
 
@@ -28,6 +29,24 @@ function useInkFlip(ref: React.RefObject<HTMLElement | null>) {
   useTimelineStyler((s) => {
     if (ref.current) ref.current.style.color = lightAt(s) > 0.5 ? "#100904" : "";
   });
+}
+
+/** Holds the first line of text back until the opening film has landed. */
+function AfterOpening({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useTimelineStyler(() => {
+    if (ref.current) {
+      const o = openingOverlay();
+      ref.current.style.opacity = String(o);
+      // not clickable while the film is still playing
+      ref.current.style.display = o > 0 ? "" : "none";
+    }
+  });
+  return (
+    <div ref={ref} className="absolute inset-0" style={{ opacity: 0, display: "none" }}>
+      {children}
+    </div>
+  );
 }
 
 /** Frosted feature panel that cross-fades between the three features. */
@@ -150,17 +169,22 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
       {/* overlays */}
       <div className="pointer-events-none fixed inset-0 z-10">
         {/* 0 — measured on the mat */}
-        <Chapter range={[-1, -0.5, 0.35, 0.8]} className="inset-x-0 bottom-20 flex flex-col items-center gap-2 px-4 text-center">
-          <span className="eyebrow text-[11px] font-medium text-cream/70">{t.editorial.serial}</span>
-          <span className="display text-[24px] text-cream sm:text-[29px]">{st.intro}</span>
-        </Chapter>
+        <AfterOpening>
+          <Chapter range={[-1, -0.5, 0.2, 0.55]} className="inset-x-0 bottom-14 flex justify-center px-4 text-center">
+            <Link
+              href={`${b}/studio`}
+              className="display pointer-events-auto bg-gradient-to-b from-[#FFE9B8] via-[#E2BC6B] to-[#A67C2E] bg-clip-text pb-2 text-[clamp(44px,7.4vw,124px)] leading-[1.15] font-bold text-transparent drop-shadow-[0_0_28px_rgba(226,188,107,0.35)] transition-transform duration-300 hover:scale-105 focus-visible:scale-105"
+            >
+              {t.home.ctaDesign}
+            </Link>
+          </Chapter>
+        </AfterOpening>
 
         {/* 1 — title */}
         <Chapter range={[0.75, 1.1, 2.0, 2.4]} className="inset-x-0 top-[12vh] px-4 text-center sm:px-8">
           <h1 className={cx(display, "text-[clamp(52px,10.5vw,170px)]")}>
             <KineticText text={t.home.heroTitle} range={[0.7, 1.55]} />
           </h1>
-          <p className="display mt-3 text-[15px] text-ember sm:text-[18px]">{st.titleKicker}</p>
         </Chapter>
         <Chapter range={[1.05, 1.4, 2.0, 2.4]} className="inset-x-4 bottom-20 grid gap-6 sm:inset-x-8 md:grid-cols-[1fr_1fr] md:items-end">
           <p className="display max-w-sm text-[18px] leading-snug text-cream sm:text-[24px]">{t.home.heroSubtitle}</p>
@@ -234,7 +258,7 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
             {st.macroParts.map((p, i) => (
               <li key={p} className="flex items-center justify-end gap-3 text-xs font-medium text-cream">
                 {p}
-                <span className={cx("h-3 w-10 rounded-sm", i === 0 ? "bg-[#C2470C]" : i === 1 ? "bg-[#B8854F]" : "bg-[#C29262]")} />
+                <span className={cx("h-3 w-10 rounded-sm", i === 0 ? "bg-[#F7F4EE]" : i === 1 ? "bg-[#B8854F]" : "bg-[#C29262]")} />
               </li>
             ))}
           </ol>

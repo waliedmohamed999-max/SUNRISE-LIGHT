@@ -274,6 +274,7 @@ model DesignProject {
   thumbnail       UploadedAsset?    @relation("DesignThumbnail", fields: [thumbnailAssetId], references: [id], onDelete: SetNull)
   versions        DesignVersion[]
   quotationItems  QuotationItem[]
+  share           DesignShare?
 
   @@index([ownerId, deletedAt, updatedAt])
   @@map("design_projects")
@@ -281,6 +282,24 @@ model DesignProject {
 
 /// Immutable snapshot of a design document (explicit saves and every RFQ submission).
 /// Individual design elements live inside the versioned JSON document so that a save is atomic.
+/// Public 3D link of a design. It serves only `surfaces`: flat face images with the watermark burned in.
+model DesignShare {
+  id          String        @id @default(cuid())
+  token       String        @unique
+  projectId   String        @unique
+  createdById String?
+  spec        Json
+  surfaces    Json
+  views       Int           @default(0)
+  revokedAt   DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  project     DesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("design_shares")
+}
+
 model DesignVersion {
   id             String          @id @default(cuid())
   projectId      String

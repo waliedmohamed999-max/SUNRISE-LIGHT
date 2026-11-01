@@ -41,6 +41,28 @@ services:
     tmpfs:
       - /tmp
 
+  # HTTPS in front of the app, certificates issued and renewed automatically.
+  # Needs DOMAIN in .env and the domain pointing at this server: docker compose --profile app --profile https up -d
+  proxy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   pgdata:
   uploads:
+  caddy_data:
+  caddy_config:
