@@ -3,7 +3,8 @@ import { db } from "./db";
 import type { Locale } from "@/i18n/config";
 import type { ChooseTemplate } from "@/components/experience/ChooseBox";
 
-const CHOOSE_ENGINES = ["rsc", "mailer", "rte", "pizza", "bag", "tray"] as const;
+/** In the order the tabs appear; the first one opens by default. */
+const CHOOSE_ENGINES = ["pizza", "rsc", "mailer", "rte", "bag", "tray"] as const;
 
 /** Catalogue data shared by the homepage and the services page. */
 export async function loadShowcase(locale: Locale) {
@@ -23,6 +24,7 @@ export async function loadShowcase(locale: Locale) {
   const representatives = templates.filter((tp) => (seenEngines.has(tp.engineKey) ? false : (seenEngines.add(tp.engineKey), true)));
   const choose: ChooseTemplate[] = representatives
     .filter((tp) => tp.currentVersion && (CHOOSE_ENGINES as readonly string[]).includes(tp.engineKey))
+    .sort((x, y) => CHOOSE_ENGINES.indexOf(x.engineKey as (typeof CHOOSE_ENGINES)[number]) - CHOOSE_ENGINES.indexOf(y.engineKey as (typeof CHOOSE_ENGINES)[number]))
     .map((tp) => {
       const v = tp.currentVersion!;
       return {
