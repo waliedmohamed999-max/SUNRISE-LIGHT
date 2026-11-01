@@ -261,6 +261,11 @@ function CupBody({ dims, canvases, textureVersion, finishMaps, insideColor, mate
         <circleGeometry args={[r + (R - r) * 0.04, 64]} />
         <meshStandardMaterial color={inside} roughness={0.9} />
       </mesh>
+      {/* the underside, so the cup is closed when it is seen from below */}
+      <mesh position={[0, 0.002, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[r, 64]} />
+        <meshStandardMaterial color={materialColor} roughness={0.8} />
+      </mesh>
       {selectedFace === "front" && (
         <mesh position={[0, H, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[R * 1.01, Math.max(0.008, size * 0.004), 8, 96]} />

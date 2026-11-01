@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { QuotationStatus } from "@prisma/client";
 import { useI18n } from "@/i18n/client";
 import type { DesignDocument } from "@/design/document";
-import { downloadBlob } from "@/design/render";
-import { DesignPreview } from "@/components/studio/DesignPreview";
+import { canvasToBlob, downloadBlob } from "@/design/render";
+import { DesignPreview, type DesignPreviewHandle } from "@/components/studio/DesignPreview";
 import { Alert, Button, buttonClass, Card, cx, Field, inputClass, Spinner } from "@/components/ui";
 
 async function call(url: string, method: string, body: unknown) {
@@ -136,9 +136,25 @@ export function JsonDownload({ doc, name, label }: { doc: DesignDocument; name: 
 }
 
 export function AdminDesignViewer({ doc, engineKey, materialColor, previewAssetId }: { doc: DesignDocument; engineKey: string; materialColor: string; previewAssetId: string | null }) {
+  const { locale } = useI18n();
+  const ar = locale === "ar";
+  const preview = useRef<DesignPreviewHandle>(null);
+  const base = doc.templateCode;
+  // rendered here, from the design itself: this is the only place artwork leaves the system without the watermark
+  const cleanImage = async () => {
+    const iso = preview.current?.isoCanvas();
+    if (iso) downloadBlob(await canvasToBlob(iso), `${base}-clean.png`);
+  };
+  const cleanFaces = async () => {
+    for (const [key, canvas] of Object.entries(preview.current?.faces() ?? {})) {
+      downloadBlob(await canvasToBlob(canvas), `${base}-${key}-clean.png`);
+    }
+  };
   return (
+    <div className="space-y-2">
     <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-navy/8 bg-paper">
       <DesignPreview
+        ref={preview}
         doc={doc}
         engineKey={engineKey}
         materialColor={materialColor}
@@ -150,6 +166,15 @@ export function AdminDesignViewer({ doc, engineKey, materialColor, previewAssetI
           ) : null
         }
       />
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <button type="button" onClick={() => void cleanImage()} className={buttonClass("accent", "sm")}>
+        {ar ? "صورة بدون علامة مائية" : "Image without watermark"}
+      </button>
+      <button type="button" onClick={() => void cleanFaces()} className={buttonClass("outline", "sm")}>
+        {ar ? "كل الأوجه بدون علامة" : "All faces without watermark"}
+      </button>
+    </div>
     </div>
   );
 }

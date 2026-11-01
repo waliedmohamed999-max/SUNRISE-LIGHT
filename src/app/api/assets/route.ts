@@ -6,6 +6,7 @@ import { HttpError, requireUser } from "@/lib/auth";
 import { storage } from "@/lib/storage";
 import { inspectImage, UploadRejected } from "@/lib/upload-security";
 import { audit } from "@/lib/audit";
+import { watermarkPng } from "@/lib/watermark";
 
 const MAX_BYTES = Number(process.env.MAX_UPLOAD_MB || 10) * 1024 * 1024;
 const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/svg+xml": "svg" } as const;
@@ -30,17 +31,19 @@ export const POST = api(
     }
     if (kind === "PREVIEW" && inspected.mime !== "image/png") throw new HttpError(422, "preview_must_be_png");
 
+    // saved previews of a design always carry the logo watermark; clean output exists only in the dashboard
+    const stored = kind === "PREVIEW" ? await watermarkPng(inspected.data) : inspected.data;
     const storageKey = `${user.id}/${kind.toLowerCase()}/${nanoid(21)}.${EXT[inspected.mime]}`;
-    await storage.put(storageKey, inspected.data);
+    await storage.put(storageKey, stored);
     const asset = await db.uploadedAsset.create({
       data: {
         ownerId: user.id,
         kind,
         mime: inspected.mime,
-        sizeBytes: inspected.data.length,
+        sizeBytes: stored.length,
         width: inspected.width,
         height: inspected.height,
-        sha256: createHash("sha256").update(inspected.data).digest("hex"),
+        sha256: createHash("sha256").update(stored).digest("hex"),
         storageKey,
         originalName: (file.name || "upload").replace(/[^\p{L}\p{N}._ -]+/gu, "_").slice(0, 120),
       },

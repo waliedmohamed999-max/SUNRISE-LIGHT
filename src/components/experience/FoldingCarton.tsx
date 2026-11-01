@@ -7,7 +7,8 @@ import { getEngine } from "@/packaging/engine";
 import type { Dieline, Dimensions } from "@/packaging/types";
 import { brandLogo, sunMark } from "@/components/three/showcase";
 import { clamp, timeline } from "./scroll";
-import { cartonAt, dimsAt, foldAt, linesAt, printAt, spinAt } from "./story";
+import { openingCartonScale } from "./opening";
+import { LID_SWAP, cartonAt, dimsAt, foldAt, linesAt, printAt, spinAt } from "./story";
 
 /**
  * Regular slotted carton assembled from the packaging engine's own dieline.
@@ -62,7 +63,7 @@ function createSheet() {
   return c;
 }
 
-function paintSheet(canvas: HTMLCanvasElement, d: Dieline, mode: "kraft" | "print" | "lines") {
+function paintSheet(canvas: HTMLCanvasElement, d: Dieline, mode: "board" | "print" | "lines") {
   const ctx = canvas.getContext("2d")!;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, SHEET_W, SHEET_H);
@@ -78,7 +79,7 @@ function paintSheet(canvas: HTMLCanvasElement, d: Dieline, mode: "kraft" | "prin
     }
     ctx.stroke();
     ctx.setLineDash([7, 5]);
-    ctx.strokeStyle = "#FFEDD7";
+    ctx.strokeStyle = "#1D2A44";
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     for (const [a, b] of d.folds) {
@@ -92,87 +93,57 @@ function paintSheet(canvas: HTMLCanvasElement, d: Dieline, mode: "kraft" | "prin
 
   for (const p of d.panels) {
     panelPath(ctx, d, p.id);
-    if (mode === "kraft") {
-      ctx.fillStyle = p.kind === "inner" ? "#B2834F" : "#BE8E5B";
-      ctx.fill();
+    ctx.fillStyle = p.kind === "inner" ? "#EDE8DF" : "#FBF9F5";
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // grain in pixel space, so it never stretches
+    ctx.fillStyle = ctx.createPattern(grain(), "repeat")!;
+    ctx.fillRect(0, 0, SHEET_W, SHEET_H);
+    ctx.restore();
+  }
+
+  const panel = (id: string) => d.panels.find((x) => x.id === id)!;
+
+  // printed stage: an ember band runs round the foot of the four walls
+  if (mode === "print") {
+    for (const id of ["glue", "front", "right", "back", "left"]) {
+      const { rect } = panel(id);
       ctx.save();
+      panelPath(ctx, d, id);
       ctx.clip();
-      ctx.setTransform(1, 0, 0, 1, 0, 0); // grain in pixel space, so it never stretches
-      ctx.fillStyle = ctx.createPattern(grain(), "repeat")!;
-      ctx.fillRect(0, 0, SHEET_W, SHEET_H);
+      ctx.fillStyle = "#EA5B32";
+      ctx.fillRect(rect.x, rect.y + rect.h * 0.88, rect.w, rect.h * 0.12);
       ctx.restore();
-    } else {
-      const g = ctx.createLinearGradient(p.rect.x, p.rect.y, p.rect.x + p.rect.w, p.rect.y + p.rect.h);
-      g.addColorStop(0, "#E2560A");
-      g.addColorStop(0.6, "#9A3307");
-      g.addColorStop(1, "#3B2214");
-      ctx.fillStyle = p.kind === "inner" || p.kind === "glue" ? "#3B2214" : g;
-      ctx.fill();
     }
   }
 
-  // artwork on the faces (millimetres)
-  const ink = mode === "kraft" ? "#120A05" : "#FFEDD7";
+  // logo on the two large walls, in millimetres so the panel UVs show it with true proportions
   for (const id of ["front", "back"]) {
-    const p = d.panels.find((x) => x.id === id)!;
-    const cx = p.rect.x + p.rect.w / 2;
-    const cy = p.rect.y + p.rect.h * 0.5;
-    const r = Math.min(p.rect.w, p.rect.h) * 0.15;
-    // drawn in millimetres (like the rest of the sheet) so the panel UVs show it with true proportions
-    const placed = brandLogo(ctx, cx, cy, p.rect.w * 0.62, mode === "kraft" ? "light" : "dark");
-    if (!placed) {
-      sunMark(ctx, cx, cy, r, ink);
-      ctx.fillStyle = ink;
-      ctx.font = `500 ${r * 0.62}px Inter, Arial, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("SUNRISE LIGHT", cx, cy + r * 0.95);
-    }
+    const { rect } = panel(id);
+    brandLogo(ctx, rect.x + rect.w / 2, rect.y + rect.h * (mode === "print" ? 0.44 : 0.5), Math.min(rect.w * 0.62, rect.h * 1.9), "light");
   }
   for (const id of ["right", "left"]) {
-    const p = d.panels.find((x) => x.id === id)!;
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = Math.max(2, p.rect.w * 0.02);
-    ctx.lineCap = "round";
-    for (const dx of [-0.12, 0.12]) {
-      const x = p.rect.x + p.rect.w * (0.5 + dx);
-      const y0 = p.rect.y + p.rect.h * 0.34;
-      const y1 = p.rect.y + p.rect.h * 0.16;
-      const a = p.rect.w * 0.05;
-      ctx.beginPath();
-      ctx.moveTo(x, y0);
-      ctx.lineTo(x, y1);
-      ctx.moveTo(x - a, y1 + a);
-      ctx.lineTo(x, y1);
-      ctx.lineTo(x + a, y1 + a);
-      ctx.stroke();
-    }
+    const { rect } = panel(id);
+    sunMark(ctx, rect.x + rect.w / 2, rect.y + rect.h * 0.5, Math.min(rect.w, rect.h) * 0.16, "#EA5B32");
   }
-  // tape across the closed top: drawn on the two major top flaps
-  for (const id of ["top-front", "top-back"]) {
-    const p = d.panels.find((x) => x.id === id)!;
-    ctx.fillStyle = mode === "kraft" ? "rgba(18,10,5,0.5)" : "rgba(255,237,215,0.85)";
-    ctx.fillRect(p.rect.x + p.rect.w * 0.45, p.rect.y, p.rect.w * 0.1, p.rect.h);
-  }
-  if (mode === "print") {
-    ctx.strokeStyle = "rgba(255,237,215,0.18)";
-    ctx.lineWidth = 1;
-    for (let i = -d.height; i < d.width; i += 12) {
-      ctx.beginPath();
-      ctx.moveTo(i, d.height);
-      ctx.lineTo(i + d.height, 0);
-      ctx.stroke();
-    }
-    // keep only panel areas — one combined path, one fill (each destination-in fill would erase the others)
-    ctx.globalCompositeOperation = "destination-in";
+
+  // logo across the closed top: each major flap carries half of it, the far flap turned 180° as it folds
+  const topWidth = Math.min(panel("top-front").rect.w * 0.62, panel("top-front").rect.h * 3.2);
+  for (const [id, turn] of [["top-front", 0], ["top-back", Math.PI]] as const) {
+    const { rect } = panel(id);
+    const cx = rect.x + rect.w / 2;
+    ctx.save();
     ctx.beginPath();
-    for (const p of d.panels) {
-      p.points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.closePath();
-    }
-    ctx.fillStyle = "#000";
-    ctx.fill();
-    ctx.globalCompositeOperation = "source-over";
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.clip();
+    ctx.translate(cx, rect.y);
+    ctx.rotate(turn);
+    brandLogo(ctx, 0, 0, topWidth, "light");
+    ctx.restore();
+    // the seam where the flaps meet
+    ctx.fillStyle = "rgba(29,42,68,0.14)";
+    ctx.fillRect(rect.x, rect.y, rect.w, 0.8);
   }
 }
 
@@ -216,17 +187,18 @@ export function FoldingCarton({ children }: { children?: React.ReactNode }) {
   const lastDims = useRef<string>("");
 
   const sheets = useMemo(() => {
-    const kraft = createSheet();
+    const board = createSheet();
     const print = createSheet();
     const lines = createSheet();
-    return { kraft, print, lines, tKraft: makeTexture(kraft), tPrint: makeTexture(print), tLines: makeTexture(lines) };
+    return { board, print, lines, tBoard: makeTexture(board), tPrint: makeTexture(print), tLines: makeTexture(lines) };
   }, []);
 
   const mats = useMemo(
     () => ({
-      outer: new THREE.MeshStandardMaterial({ map: sheets.tKraft, roughness: 0.88, alphaTest: 0.5, side: THREE.FrontSide }),
-      inner: new THREE.MeshStandardMaterial({ map: sheets.tKraft, color: "#8a6a48", roughness: 0.95, alphaTest: 0.5, side: THREE.BackSide }),
-      print: new THREE.MeshStandardMaterial({ map: sheets.tPrint, roughness: 0.55, transparent: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -1, depthWrite: false }),
+      // the scene's lights are warm; a little self-illumination keeps the board reading as white
+      outer: new THREE.MeshStandardMaterial({ map: sheets.tBoard, emissive: "#ffffff", emissiveMap: sheets.tBoard, emissiveIntensity: 0.6, roughness: 0.62, alphaTest: 0.5, side: THREE.FrontSide }),
+      inner: new THREE.MeshStandardMaterial({ map: sheets.tBoard, color: "#e4ded2", emissive: "#ffffff", emissiveIntensity: 0.5, roughness: 0.85, alphaTest: 0.5, side: THREE.BackSide }),
+      print: new THREE.MeshStandardMaterial({ map: sheets.tPrint, emissive: "#ffffff", emissiveMap: sheets.tPrint, emissiveIntensity: 0.6, roughness: 0.5, transparent: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -1, depthWrite: false }),
       lines: new THREE.MeshBasicMaterial({ map: sheets.tLines, transparent: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -2, depthWrite: false }),
     }),
     [sheets],
@@ -235,7 +207,7 @@ export function FoldingCarton({ children }: { children?: React.ReactNode }) {
   useEffect(
     () => () => {
       Object.values(mats).forEach((m) => m.dispose());
-      [sheets.tKraft, sheets.tPrint, sheets.tLines].forEach((t) => t.dispose());
+      [sheets.tBoard, sheets.tPrint, sheets.tLines].forEach((t) => t.dispose());
     },
     [mats, sheets],
   );
@@ -258,16 +230,23 @@ export function FoldingCarton({ children }: { children?: React.ReactNode }) {
     // repaint sheets and UVs only when the dimensions actually change
     if (key !== lastDims.current) {
       lastDims.current = key;
-      paintSheet(sheets.kraft, d, "kraft");
+      paintSheet(sheets.board, d, "board");
       paintSheet(sheets.print, d, "print");
       paintSheet(sheets.lines, d, "lines");
-      sheets.tKraft.needsUpdate = sheets.tPrint.needsUpdate = sheets.tLines.needsUpdate = true;
+      sheets.tBoard.needsUpdate = sheets.tPrint.needsUpdate = sheets.tLines.needsUpdate = true;
       for (const id of IDS) {
         setPanelUV(geos[id], d, id);
       }
     }
 
     layout(dims, d, foldAt(s));
+    // the pizza lid stands in for the top flaps during the opening
+    for (const id of IDS) {
+      if (id.startsWith("top-")) {
+        const n = nodes.current[id];
+        if (n) n.mesh.visible = s >= LID_SWAP;
+      }
+    }
     mats.print.opacity = printAt(s);
     mats.lines.opacity = linesAt(s);
 
@@ -275,7 +254,7 @@ export function FoldingCarton({ children }: { children?: React.ReactNode }) {
       const F = foldAt(s);
       root.current.rotation.set(-Math.PI / 2 * (1 - F), spinAt(s), 0);
       // step aside when another chapter has the stage
-      const presence = cartonAt(s);
+      const presence = cartonAt(s) * openingCartonScale();
       root.current.visible = presence > 0.01;
       root.current.scale.setScalar(Math.max(0.001, presence));
     }

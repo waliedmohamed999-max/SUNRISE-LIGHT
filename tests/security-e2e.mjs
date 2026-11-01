@@ -183,6 +183,38 @@ const design = (await a("/api/designs", { method: "POST", json: { name: "Sec des
   check((await b(`/api/designs/${design.id}/dieline.svg`)).status === 404, "B cannot download A's dieline");
 }
 
+/* ───────── public 3D link and watermark ───────── */
+{
+  const faces = () => {
+    const f = new FormData();
+    for (const k of ["front", "back", "left", "right", "top", "bottom"]) f.append(k, new Blob([PNG], { type: "image/png" }), `${k}.png`);
+    return f;
+  };
+  check((await a(`/api/designs/${design.id}/dieline.svg`)).status === 404, "a customer cannot download the production dieline");
+  check((await anon(`/api/designs/${design.id}/share`, { method: "POST", form: faces() })).status === 401, "a link cannot be created without signing in");
+  check((await b(`/api/designs/${design.id}/share`, { method: "POST", form: faces() })).status === 404, "B cannot share A's design");
+  const made = await a(`/api/designs/${design.id}/share`, { method: "POST", form: faces() });
+  check(made.status === 200 && typeof made.data.token === "string" && made.data.token.length >= 30, "the owner gets an unguessable link");
+  const token = made.data.token;
+  const days = (new Date(made.data.expiresAt) - Date.now()) / 86400000;
+  check(days > 9.9 && days <= 10, "the link expires after 10 days");
+  const face = await fetch(`${BASE}/api/share/${token}/front`);
+  const bytes = Buffer.from(await face.arrayBuffer());
+  check(face.status === 200 && face.headers.get("content-type") === "image/png", "the link's face image opens without signing in");
+  check(!bytes.equals(Buffer.from(PNG)), "the served image is not the uploaded one (watermark burned in)");
+  check((await fetch(`${BASE}/api/share/${token}/document`)).status === 404, "the link serves nothing but face images");
+  check((await fetch(`${BASE}/api/share/${token}/__proto__`)).status === 404, "the link rejects prototype keys");
+  check((await fetch(`${BASE}/api/assets/${logo.id}`)).status === 401, "the customer's logo file stays private");
+  const page = await (await fetch(`${BASE}/ar/view/${token}`)).text();
+  check(page.includes("noindex") && !page.includes(logo.id), "the public page is not indexed and never names the original files");
+  check((await a(`/api/designs/${design.id}/share`, { method: "POST", form: faces() })).data.token === token, "refreshing keeps the same address");
+  check((await b(`/api/designs/${design.id}/share`, { method: "DELETE" })).status === 404, "B cannot stop A's link");
+  check((await a(`/api/designs/${design.id}/share`, { method: "DELETE" })).status === 200, "the owner can stop the link");
+  check((await fetch(`${BASE}/api/share/${token}/front`)).status === 404, "a stopped link serves nothing");
+  check((await fetch(`${BASE}/ar/view/${token}`)).status === 404, "a stopped link's page is gone");
+  check((await fetch(`${BASE}/ar/view/not-a-real-token-at-all-000000`)).status === 404, "unknown links are not found");
+}
+
 /* ───────── automatic pricing ───────── */
 {
   const est = { designId: design.id, quantity: 1000, materialCode: "corrugated-kraft", finishingCodes: [] };

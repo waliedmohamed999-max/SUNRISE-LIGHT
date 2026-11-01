@@ -66,7 +66,7 @@ export function CorrugatedSample() {
     () => ({
       flute: new THREE.MeshStandardMaterial({ map: grainTexture("#B8854F", 26), roughness: 0.92 }),
       inner: new THREE.MeshStandardMaterial({ map: grainTexture("#C29262", 20), roughness: 0.9 }),
-      printed: new THREE.MeshStandardMaterial({ color: "#C2470C", roughness: 0.45 }),
+      printed: new THREE.MeshStandardMaterial({ color: "#F7F4EE", roughness: 0.5 }),
     }),
     [],
   );

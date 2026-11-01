@@ -1,7 +1,7 @@
 "use client";
 
 import { getEngine } from "@/packaging/engine";
-import type { Dimensions, SurfaceKey } from "@/packaging/types";
+import type { BoxStyle, Dimensions, SurfaceKey } from "@/packaging/types";
 
 /* Procedural artwork for showcase objects — Sunrise Light's own mark only, no customer branding. */
 
@@ -136,102 +136,34 @@ export function surfaceCanvases(dims: Dimensions, engineKey: string, paint: (key
 
 export type ShowcaseKind = "rsc" | "mailer" | "rte" | "cup" | "print" | "pizza" | "bag" | "tray";
 
+const WHITE_BOARD = "#FBF9F5";
+
 export const SHOWCASE_DIMS: Record<Exclude<ShowcaseKind, "cup">, { engine: string; dims: Dimensions; material: string; style: "closed" | "mailer" | "tuck" | "open" | "bag" }> = {
-  rsc: { engine: "rsc", dims: { length: 400, width: 300, height: 260 }, material: "#B98C5A", style: "closed" },
-  mailer: { engine: "mailer", dims: { length: 300, width: 220, height: 90 }, material: "#E8D9C4", style: "mailer" },
-  rte: { engine: "rte", dims: { length: 80, width: 60, height: 170 }, material: "#F2E6D6", style: "tuck" },
+  rsc: { engine: "rsc", dims: { length: 400, width: 300, height: 260 }, material: WHITE_BOARD, style: "closed" },
+  mailer: { engine: "mailer", dims: { length: 300, width: 220, height: 90 }, material: WHITE_BOARD, style: "mailer" },
+  rte: { engine: "rte", dims: { length: 80, width: 60, height: 170 }, material: WHITE_BOARD, style: "tuck" },
   print: { engine: "rsc", dims: { length: 300, width: 300, height: 300 }, material: "#FFEDD7", style: "closed" },
-  pizza: { engine: "pizza", dims: { length: 330, width: 330, height: 45 }, material: "#E8D9C4", style: "mailer" },
-  bag: { engine: "bag", dims: { length: 260, width: 120, height: 330 }, material: "#B98C5A", style: "bag" },
-  tray: { engine: "tray", dims: { length: 300, width: 200, height: 80 }, material: "#B98C5A", style: "open" },
+  pizza: { engine: "pizza", dims: { length: 330, width: 330, height: 45 }, material: WHITE_BOARD, style: "mailer" },
+  bag: { engine: "bag", dims: { length: 260, width: 120, height: 330 }, material: WHITE_BOARD, style: "bag" },
+  tray: { engine: "tray", dims: { length: 300, width: 200, height: 80 }, material: WHITE_BOARD, style: "open" },
 };
+
+/** Any packaging shape in the house style: white board with the Sunrise Light logo. */
+export function brandedCanvases(dims: Dimensions, engine: string, style: BoxStyle) {
+  return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
+    grainFill(ctx, w, h, WHITE_BOARD, 5);
+    if (key === "bottom") return;
+    // the cup's wrap faces the viewer around 60% of its width
+    if (style === "cup") brandLogo(ctx, w * 0.605, h * 0.5, w * 0.3, "light");
+    // the lockup where the face is wide enough to read it, otherwise the mark alone
+    else if (w / h >= 0.7) brandLogo(ctx, w / 2, h / 2, w * 0.66, "light");
+    else sunMark(ctx, w / 2, h * 0.54, w * 0.2, "#EA5B32");
+  });
+}
 
 export function showcaseCanvases(kind: Exclude<ShowcaseKind, "cup">): Record<SurfaceKey, HTMLCanvasElement> {
   const { engine, dims } = SHOWCASE_DIMS[kind];
-  if (kind === "rsc") {
-    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
-      grainFill(ctx, w, h, "#B98C5A", 18);
-      if ((key === "front" || key === "back") && !brandLogo(ctx, w / 2, h * 0.5, w * 0.62, "light")) {
-        sunMark(ctx, w * 0.5, h * 0.52, Math.min(w, h) * 0.12, "#100904");
-        label(ctx, "SUNRISE LIGHT", w / 2, h * 0.74, h * 0.06, "#100904");
-      }
-      if (key === "right" || key === "left") {
-        ctx.strokeStyle = "#100904";
-        ctx.lineWidth = w * 0.022;
-        for (const dx of [-0.12, 0.12]) {
-          ctx.beginPath();
-          ctx.moveTo(w * (0.5 + dx), h * 0.32);
-          ctx.lineTo(w * (0.5 + dx), h * 0.15);
-          ctx.lineTo(w * (0.5 + dx) - w * 0.05, h * 0.22);
-          ctx.moveTo(w * (0.5 + dx), h * 0.15);
-          ctx.lineTo(w * (0.5 + dx) + w * 0.05, h * 0.22);
-          ctx.stroke();
-        }
-      }
-      if (key === "top" || key === "bottom") {
-        ctx.fillStyle = "rgba(16,9,4,0.55)";
-        ctx.fillRect(w * 0.45, 0, w * 0.1, h);
-      }
-    });
-  }
-  if (kind === "mailer") {
-    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
-      grainFill(ctx, w, h, key === "top" ? "#382416" : "#E8D9C4", key === "top" ? 10 : 6);
-      if (key === "top") {
-        if (!brandLogo(ctx, w / 2, h * 0.5, w * 0.6, "dark")) {
-          sunMark(ctx, w / 2, h * 0.55, h * 0.15, "#EA5B32");
-          label(ctx, "SUNRISE LIGHT", w / 2, h * 0.75, h * 0.055, "#FFEDD7");
-        }
-      } else {
-        ctx.fillStyle = "#EA5B32";
-        ctx.fillRect(0, h * 0.86, w, h * 0.04);
-      }
-    });
-  }
-  if (kind === "rte") {
-    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
-      grainFill(ctx, w, h, "#F2E6D6", 6);
-      if (key === "front" || key === "back") {
-        sunMark(ctx, w / 2, h * 0.3, w * 0.17, "#EA5B32");
-        ctx.fillStyle = "#100904";
-        ctx.fillRect(w * 0.18, h * 0.46, w * 0.64, h * 0.01);
-        label(ctx, "No. 01", w / 2, h * 0.53, w * 0.09, "#100904");
-        ctx.fillStyle = "#382416";
-        ctx.fillRect(0, h * 0.82, w, h * 0.18);
-      }
-      if (key === "top" || key === "bottom") {
-        ctx.fillStyle = "#382416";
-        ctx.fillRect(0, 0, w, h);
-      }
-    });
-  }
-  if (kind === "pizza") {
-    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
-      grainFill(ctx, w, h, key === "top" ? "#C2470C" : "#E8D9C4", 8);
-      if (key === "top") {
-        sunMark(ctx, w / 2, h * 0.5, w * 0.16, "#FFEDD7");
-        label(ctx, "FRESH · HOT", w / 2, h * 0.7, w * 0.05, "#FFEDD7");
-      } else if (key !== "bottom") {
-        ctx.fillStyle = "#C2470C";
-        ctx.fillRect(0, h * 0.7, w, h * 0.3);
-      }
-    });
-  }
-  if (kind === "bag") {
-    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
-      grainFill(ctx, w, h, "#B98C5A", 16);
-      if ((key === "front" || key === "back") && !brandLogo(ctx, w / 2, h * 0.5, w * 0.78, "light")) {
-        sunMark(ctx, w / 2, h * 0.48, w * 0.16, "#100904");
-        label(ctx, "SUNRISE LIGHT", w / 2, h * 0.6, w * 0.06, "#100904");
-      }
-    });
-  }
-  if (kind === "tray") {
-    return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
-      grainFill(ctx, w, h, "#B98C5A", 16);
-      if (key === "front") sunMark(ctx, w / 2, h * 0.62, h * 0.26, "#FFEDD7");
-    });
-  }
+  if (kind !== "print") return brandedCanvases(dims, engine, SHOWCASE_DIMS[kind].style);
   // print: full-bleed printed artwork, shows colour + finishing capability
   return surfaceCanvases(dims, engine, (key, ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, w, h);

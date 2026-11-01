@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   // Allows a verification build next to a running server (NEXT_DIST_DIR=.next-verify npm run build)
   distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
-  serverExternalPackages: ["isomorphic-dompurify", "jsdom"],
+  serverExternalPackages: ["isomorphic-dompurify", "jsdom", "sharp"],
   webpack(config) {
     // Konva's Node entry requires the native "canvas" package; the editor only runs in the browser.
     config.resolve.alias = { ...config.resolve.alias, canvas: false };
