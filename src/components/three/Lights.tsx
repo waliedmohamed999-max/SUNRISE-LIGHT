@@ -12,13 +12,18 @@ export function DarkroomLights() {
   );
 }
 
-/** Neutral daylight for the design studio, so the colours on screen are the colours of the design. */
+/**
+ * Neutral light from every side for the design studio, shown without tone mapping: no face of the
+ * product falls into shadow, so a colour reads the same all the way round and matches what was picked.
+ */
 export function StudioLights() {
   return (
     <>
-      <directionalLight position={[4, 7, 5]} intensity={1.9} color="#ffffff" />
-      <directionalLight position={[-5, 3, 3]} intensity={1.2} color="#ffffff" />
-      <directionalLight position={[0, 3, -6]} intensity={0.9} color="#ffffff" />
+      <ambientLight intensity={0.6} color="#ffffff" />
+      <directionalLight position={[3, 6, 6]} intensity={0.55} color="#ffffff" />
+      <directionalLight position={[-3, 6, -6]} intensity={0.55} color="#ffffff" />
+      <directionalLight position={[6, 2, -2]} intensity={0.5} color="#ffffff" />
+      <directionalLight position={[-6, 2, 2]} intensity={0.5} color="#ffffff" />
     </>
   );
 }

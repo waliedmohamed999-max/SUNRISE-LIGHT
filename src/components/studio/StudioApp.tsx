@@ -22,6 +22,7 @@ import {
   type TextElement,
 } from "@/design/document";
 import { useAssetImages, useDebouncedEffect, useDesignHistory, useFontsReady } from "@/design/hooks";
+import { finishingApplies, INSIDE_CODES } from "@/design/finishing";
 import { watermarkedCopy } from "@/design/watermark";
 import { Logo, LogoMark } from "@/components/site/Logo";
 import { BACKDROPS, BackdropPicker } from "@/components/three/Backdrops";
@@ -180,6 +181,19 @@ export default function StudioApp({
   const spec = specs.find((s) => s.key === surfaceKey) ?? specs[0];
   const dieline = useMemo(() => engine.dieline(doc.dimensions), [engine, doc.dimensions]);
   const opening = openingFor(engine.key);
+  // what is added inside the box should be seen straight away
+  const insideCodes = doc.finishingCodes.filter((c) => INSIDE_CODES.includes(c)).join();
+  const lastInside = useRef(insideCodes);
+  useEffect(() => {
+    if (insideCodes.length > lastInside.current.length && opening) setLidOpen(true);
+    lastInside.current = insideCodes;
+  }, [insideCodes, opening]);
+  // add-ons kept from another product, or an older draft, that this structure cannot have
+  useEffect(() => {
+    const kept = doc.finishingCodes.filter((c) => finishingApplies(c, engine.boxStyle));
+    if (kept.length !== doc.finishingCodes.length) replace({ ...doc, finishingCodes: kept });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.finishingCodes, engine.boxStyle]);
   const compatibleMaterials = catalog.materials.filter((m) => template.materialCodes.includes(m.code));
   const material = catalog.materials.find((m) => m.code === doc.materialCode) ?? null;
   const materialColor = material?.colorHex ?? "#FBF9F5";

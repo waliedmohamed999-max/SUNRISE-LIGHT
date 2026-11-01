@@ -93,18 +93,22 @@ export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate,
   return (
     <div className={className}>
       {/* render on demand (orbit, edits, lid animation) instead of 60 fps; auto-rotating previews keep a continuous loop */}
-      <Canvas frameloop={autoRotate ? "always" : "demand"} dpr={[1, 1.5]} camera={{ position: PRESETS[preset], fov: 35 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
+      <Canvas flat={light} frameloop={autoRotate ? "always" : "demand"} dpr={[1, 1.5]} camera={{ position: PRESETS[preset], fov: 35 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
         <Suspense fallback={null}>
           <color attach="background" args={[background ?? (light ? "#f1f2f7" : "#100904")]} />
-          <hemisphereLight args={light ? ["#ffffff", "#d9dcea", 1.1] : ["#ffe9d2", "#2a1a10", 0.55]} />
+          <hemisphereLight args={light ? ["#ffffff", "#f2f3f7", 0.12] : ["#ffe9d2", "#2a1a10", 0.55]} />
           {light ? <StudioLights /> : <DarkroomLights />}
           {/* procedural studio reflections (no downloads) so foil and spot UV read correctly */}
           <Environment resolution={128}>
+              {/* a bright room for the studio: metallic foil always has something light to mirror, whichever way it faces */}
+              {light && <color attach="background" args={["#9a9a9a"]} />}
               {/* broad softbox behind the camera: metallic foil needs something bright to mirror */}
-              <Lightformer intensity={2.4} color={light ? "#ffffff" : "#fff0dc"} position={[0, 1, 7]} scale={[10, 4, 1]} />
-            <Lightformer intensity={2.2} color={light ? "#ffffff" : "#ffe2c4"} position={[0, 4, 3]} scale={[6, 2, 1]} />
-            <Lightformer intensity={1.4} color={light ? "#ffffff" : "#ff9a52"} position={[5, 2, -3]} scale={[3, 3, 1]} />
+              <Lightformer intensity={light ? 1.2 : 2.4} color={light ? "#ffffff" : "#fff0dc"} position={[0, 1, 7]} scale={[10, 4, 1]} />
+            <Lightformer intensity={light ? 0.5 : 2.2} color={light ? "#ffffff" : "#ffe2c4"} position={[0, 4, 3]} scale={[6, 2, 1]} />
+            <Lightformer intensity={light ? 0.8 : 1.4} color={light ? "#ffffff" : "#ff9a52"} position={[5, 2, -3]} scale={[3, 3, 1]} />
             <Lightformer intensity={0.6} color="#ffffff" position={[-5, 1, 2]} scale={[2, 4, 1]} />
+            {/* the studio is lit all round, so the far side reflects as much as the near one */}
+            {light && <Lightformer intensity={1.2} color="#ffffff" position={[0, 1, -7]} scale={[10, 4, 1]} />}
           </Environment>
           {/* tall bags need headroom for their handles */}
           <BoxModel {...model} size={modelSize} />

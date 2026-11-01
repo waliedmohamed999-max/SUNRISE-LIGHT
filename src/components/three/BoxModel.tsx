@@ -341,7 +341,8 @@ export function BoxModel(props: BoxModelProps) {
   return <BoxBody {...props} />;
 }
 
-const FLAP_ANGLE = Math.PI * 0.72;
+// folded right back, so the flaps never stand between the camera and what is inside
+const FLAP_ANGLE = Math.PI * 0.9;
 
 /** The inner tray of a drawer box, drawn from its end panel back into the sleeve. */
 function DrawerTray({ L, W, H, color }: { L: number; W: number; H: number; color: string }) {
@@ -380,6 +381,7 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
   const slideRef = useRef<THREE.Group>(null);
   const flapRefs = useRef<(THREE.Group | null)[]>([]);
   const progress = useRef(0);
+  const fitting = addons.includes("foam-insert") ? ("foam" as const) : addons.includes("inserts") ? ("partitions" as const) : null;
   const kind: BoxOpening = opening ?? (boxStyle === "mailer" || boxStyle === "tuck" ? "hinge" : "flaps");
 
   const invalidate = useThree((s) => s.invalidate);
@@ -397,7 +399,7 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
       lid.rotation.z = -0.1 * p;
       if (skirtRef.current) skirtRef.current.visible = p > 0.01;
     }
-    if (kind === "slide" && slideRef.current) slideRef.current.position.x = p * L * 0.55;
+    if (kind === "slide" && slideRef.current) slideRef.current.position.x = p * L * 0.45;
     if (kind === "flaps") {
       // the long flaps fold back first, then the short ones under them
       const long = Math.min(1, p / 0.6) * FLAP_ANGLE;
@@ -426,6 +428,11 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
       <group ref={slideRef}>
         <Face w={W} h={H} canvas={c.right} finish={fm.right} version={v("right")} inside={inside} position={[L / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]} {...pick("right")} />
         {kind === "slide" && !openTop && <DrawerTray L={L} W={W} H={H} color={inside} />}
+        {kind === "slide" && !openTop && fitting && (
+          <group scale={[0.96, 0.9, 0.94]} position={[-L * 0.01, -H * 0.04, 0]}>
+            <Insert L={L} W={W} H={H} kind={fitting} color={inside} />
+          </group>
+        )}
       </group>
       <Face w={W} h={H} canvas={c.left} finish={fm.left} version={v("left")} inside={inside} position={[-L / 2, 0, 0]} rotation={[0, -Math.PI / 2, 0]} {...pick("left")} />
       <Face w={L} h={W} canvas={c.bottom} finish={fm.bottom} version={v("bottom")} inside={inside} position={[0, -H / 2, 0]} rotation={[Math.PI / 2, 0, 0]} {...pick("bottom")} />
@@ -457,6 +464,11 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
               </group>
             );
           })}
+          {!lidOpen && addons.includes("satin-ribbon") && (
+            <group position={[0, H / 2, -W / 2]}>
+              <Bow L={L} W={W} />
+            </group>
+          )}
           {!lidOpen && (
             <mesh position={[0, H / 2 + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
               <planeGeometry args={[L, Math.max(0.004, size * 0.002)]} />
@@ -486,8 +498,7 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
           )}
         </group>
       )}
-      {boxStyle !== "bag" && addons.includes("foam-insert") && <Insert L={L} W={W} H={H} kind="foam" color={inside} />}
-      {boxStyle !== "bag" && !addons.includes("foam-insert") && addons.includes("inserts") && <Insert L={L} W={W} H={H} kind="partitions" color={inside} />}
+      {kind !== "slide" && boxStyle !== "bag" && fitting && <Insert L={L} W={W} H={H} kind={fitting} color={inside} />}
       {!lidOpen && kind === "lift" && !openTop && (
         <lineSegments geometry={edges} position={[0, H * 0.2, 0]} scale={[L * 1.002, 0.0001, W * 1.002]}>
           <lineBasicMaterial color="#100904" transparent opacity={0.3} />

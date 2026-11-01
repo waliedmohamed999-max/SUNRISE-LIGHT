@@ -14,7 +14,7 @@ import { applyPreset, DESIGN_PRESETS, type DesignPreset } from "@/design/presets
 import { measureText } from "@/design/render";
 import type { TextStyle } from "./context";
 import { normaliseEan13 } from "@/design/codes";
-import { decorApplied, finishingGroup, GROUP_LABELS, toggleFinishing, type FinishingGroup } from "@/design/finishing";
+import { decorApplied, finishingApplies, finishingGroup, GROUP_LABELS, toggleFinishing, type FinishingGroup } from "@/design/finishing";
 export { TemplateGlyph };
 import {
   AlignCenterIcon,
@@ -328,7 +328,7 @@ export function SurfacesPanel() {
 
 export function MaterialPanel() {
   const { compatibleMaterials, material, update, locale, t, template, doc, catalog, surfaceKey, selectedId, printable, engine } = useStudio();
-  const finishings = catalog.finishings.filter((f) => material?.finishingCodes.includes(f.code));
+  const finishings = catalog.finishings.filter((f) => material?.finishingCodes.includes(f.code) && finishingApplies(f.code, engine.boxStyle));
   const tip = ENGINE_TIPS[template.engineKey];
   return (
     <div className="space-y-5">
