@@ -156,7 +156,8 @@ export function brandedCanvases(dims: Dimensions, engine: string, style: BoxStyl
     // the cup's wrap faces the viewer around 60% of its width
     if (style === "cup") brandLogo(ctx, w * 0.605, h * 0.5, w * 0.3, "light");
     // the lockup where the face is wide enough to read it, otherwise the mark alone
-    else if (w / h >= 0.7) brandLogo(ctx, w / 2, h / 2, w * 0.66, "light");
+    // (kept short enough to fit a low wall, such as the side of a pizza box)
+    else if (w / h >= 0.7) brandLogo(ctx, w / 2, h / 2, Math.min(w * 0.66, h * 2), "light");
     else sunMark(ctx, w / 2, h * 0.54, w * 0.2, "#EA5B32");
   });
 }
