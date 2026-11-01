@@ -25,6 +25,7 @@ import { useAssetImages, useDebouncedEffect, useDesignHistory, useFontsReady } f
 import { watermarkedCopy } from "@/design/watermark";
 import { Logo, LogoMark } from "@/components/site/Logo";
 import { BACKDROPS, BackdropPicker } from "@/components/three/Backdrops";
+import { openingFor, openingLabel } from "@/components/three/opening-label";
 import { canvasToBlob, downloadBlob, measureText, renderFinishMaps, renderIsoThumbnail, renderSurfaceCanvases } from "@/design/render";
 import type { FinishMaps } from "@/components/three/BoxModel";
 import { ICONS, type IconKey } from "@/design/icons";
@@ -88,6 +89,8 @@ type View = "split" | "2d" | "3d" | "dieline";
 type LeftTab = "dims" | "summary" | "templates" | "presets" | "colors" | "text" | "elements" | "uploads" | "material" | "layers";
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error" | "local";
 
+const isBlankDesign = (d: DesignDocument) => Object.values(d.surfaces).every((x) => !x.background && x.elements.length === 0);
+
 export default function StudioApp({
   catalog,
   initial,
@@ -104,15 +107,33 @@ export default function StudioApp({
   const { t, locale } = useI18n();
   const router = useRouter();
 
+  /** New designs start on the whitest board the template allows; kraft and the rest stay available in the material panel. */
+  const whitestMaterial = useCallback(
+    (codes: string[]) => {
+      const light = (code: string) => {
+        const n = parseInt((catalog.materials.find((m) => m.code === code)?.colorHex ?? "#000000").slice(1), 16);
+        return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+      };
+      return [...codes].sort((a, b) => light(b) - light(a))[0] ?? null;
+    },
+    [catalog.materials],
+  );
+
   const makeDefault = useCallback(
     (code?: string): DesignDocument => {
       const tpl = catalog.templates.find((x) => x.code === code) ?? catalog.templates[0];
-      return newDocument({ templateCode: tpl.code, templateVersion: tpl.version.version, dimensions: tpl.version.defaults, materialCode: tpl.materialCodes[0] ?? null });
+      return newDocument({ templateCode: tpl.code, templateVersion: tpl.version.version, dimensions: tpl.version.defaults, materialCode: whitestMaterial(tpl.materialCodes) });
     },
-    [catalog.templates],
+    [catalog.templates, whitestMaterial],
   );
 
-  const history = useDesignHistory(initial?.document ?? makeDefault(initialTemplateCode));
+  /** A design with nothing on it follows the white default; one with work in it keeps the board it was designed on. */
+  const withWhiteIfBlank = (d: DesignDocument): DesignDocument => {
+    const tpl = catalog.templates.find((x) => x.code === d.templateCode);
+    return tpl && isBlankDesign(d) ? { ...d, materialCode: whitestMaterial(tpl.materialCodes) } : d;
+  };
+
+  const history = useDesignHistory(initial ? withWhiteIfBlank(initial.document) : makeDefault(initialTemplateCode));
   const { doc, update, undo, redo, replace } = history;
 
   const [designId, setDesignId] = useState<string | null>(initial?.id ?? null);
@@ -158,9 +179,10 @@ export default function StudioApp({
   const specs = useMemo(() => engine.surfaces(doc.dimensions), [engine, doc.dimensions]);
   const spec = specs.find((s) => s.key === surfaceKey) ?? specs[0];
   const dieline = useMemo(() => engine.dieline(doc.dimensions), [engine, doc.dimensions]);
+  const opening = openingFor(engine.key);
   const compatibleMaterials = catalog.materials.filter((m) => template.materialCodes.includes(m.code));
   const material = catalog.materials.find((m) => m.code === doc.materialCode) ?? null;
-  const materialColor = material?.colorHex ?? "#C9A06B";
+  const materialColor = material?.colorHex ?? "#FBF9F5";
   const textured = material ? ["KRAFT", "CORRUGATED"].includes(material.kind) : true;
   const printable = useCallback((k: SurfaceKey) => template.version.panels.find((p) => p.key === k)?.printable ?? true, [template]);
   const selected = doc.surfaces[surfaceKey].elements.find((e) => e.id === selectedId) ?? null;
@@ -227,7 +249,7 @@ export default function StudioApp({
       const parsed = JSON.parse(raw);
       const d = designDocumentSchema.safeParse(parsed.document);
       if (d.success && catalog.templates.some((x) => x.code === d.data.templateCode) && (!initialTemplateCode || initialTemplateCode === d.data.templateCode)) {
-        replace(d.data);
+        replace(withWhiteIfBlank(d.data));
         if (typeof parsed.name === "string") setName(parsed.name);
       }
     } catch {
@@ -604,13 +626,13 @@ export default function StudioApp({
         templateCode: next.code,
         templateVersion: next.version.version,
         dimensions: { ...dims },
-        materialCode: d.materialCode && next.materialCodes.includes(d.materialCode) ? d.materialCode : next.materialCodes[0] ?? null,
+        materialCode: !isBlankDesign(d) && d.materialCode && next.materialCodes.includes(d.materialCode) ? d.materialCode : whitestMaterial(next.materialCodes),
         printOption: d.printOption && next.version.printOptions.includes(d.printOption) ? d.printOption : null,
         surfaces: reflowSurfaces(d.surfaces, engine.surfaces(d.dimensions), nextEngine.surfaces(dims)),
       }));
       setSelectedId(null);
     },
-    [catalog.templates, doc.surfaces, engine, t, update],
+    [catalog.templates, doc.surfaces, engine, t, update, whitestMaterial],
   );
 
   const resetDesign = () => {
@@ -1058,9 +1080,9 @@ export default function StudioApp({
                     <ToolButton label={locale === "ar" ? "ملء الشاشة" : "Fullscreen"} onClick={() => void (document.fullscreenElement ? document.exitFullscreen() : stage3d.current?.requestFullscreen())}>
                       <EyeIcon className="size-4" />
                     </ToolButton>
-                    {(engine.boxStyle === "mailer" || engine.boxStyle === "tuck") && (
-                      <button onClick={() => setLidOpen((o) => !o)} className="rounded-full bg-sun-100 px-3 py-1 text-xs font-semibold text-sun-600">
-                        {lidOpen ? t.studio.closeLid : t.studio.openLid}
+                    {opening && (
+                      <button onClick={() => setLidOpen((o) => !o)} aria-pressed={lidOpen} className="rounded-full bg-sun-100 px-3 py-1 text-xs font-semibold text-sun-600">
+                        {openingLabel(opening, lidOpen, locale)}
                       </button>
                     )}
                   </>
@@ -1146,6 +1168,7 @@ export default function StudioApp({
                     insideColor={doc.interior}
                     addons={doc.finishingCodes}
                     lidOpen={lidOpen}
+                    opening={opening}
                     preset={preset.p}
                     presetNonce={preset.n}
                     onFaceClick={(k) => printable(k) && setSurfaceKey(k)}
@@ -1169,7 +1192,7 @@ export default function StudioApp({
                   {locale === "ar" ? "تعديل العنصر" : "Edit element"}
                 </button>
               )}
-              <div className={cx("pointer-events-none absolute start-3 bottom-3 flex-wrap items-center gap-2", view === "3d" ? "flex" : "hidden lg:flex")}>
+              <div className={cx("pointer-events-none absolute start-3 bottom-3 flex-wrap items-center gap-2", view === "3d" ? "flex" : "hidden")}>
                 <span className="num rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-navy shadow-sm">
                   {formatDims(doc.dimensions, engine.boxStyle)}
                 </span>

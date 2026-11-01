@@ -38,6 +38,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   sessions          Session[]
+  passwordResets    PasswordReset[]
   profile           CustomerProfile?
   designs           DesignProject[]
   assets            UploadedAsset[]
@@ -51,6 +52,20 @@ model User {
 
   @@index([role])
   @@map("users")
+}
+
+/// One-time password recovery link. Only the hash of its token is stored.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_resets")
 }
 
 model Session {

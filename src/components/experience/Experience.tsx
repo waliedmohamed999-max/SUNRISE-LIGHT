@@ -187,7 +187,7 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
           </h1>
         </Chapter>
         <Chapter range={[1.05, 1.4, 2.0, 2.4]} className="inset-x-4 bottom-20 grid gap-6 sm:inset-x-8 md:grid-cols-[1fr_1fr] md:items-end">
-          <p className="display max-w-sm text-[18px] leading-snug text-cream sm:text-[24px]">{t.home.heroSubtitle}</p>
+          <p className="display hidden max-w-sm text-[24px] leading-snug text-cream sm:block">{t.home.heroSubtitle}</p>
           <div className="flex flex-col items-start gap-5 md:items-end">
             <p className="max-w-md text-sm leading-relaxed text-cream/70 md:text-end">{t.home.heroBody}</p>
             <div className="flex flex-wrap gap-3">
@@ -233,9 +233,10 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
         <Chapter range={[5.25, 5.55, 6.25, 6.55]} className="end-4 top-[20vh] max-w-md sm:end-8">
           <p className="eyebrow text-xs font-medium text-cream/60">{st.printEyebrow}</p>
           <h2 className={cx(display, "mt-4 text-[41px] sm:text-[51px]")}>{st.printTitle}</h2>
-          <div className="rule-cream my-6" />
-          <p className="text-[15px] leading-relaxed text-cream/80 sm:text-[18px]">{st.printBody}</p>
-          <ul className="mt-6 flex flex-wrap gap-2">
+          <div className="rule-cream my-6 hidden sm:block" />
+          {/* on phones the carton needs this room; the title carries the chapter */}
+          <p className="hidden text-[18px] leading-relaxed text-cream/80 sm:block">{st.printBody}</p>
+          <ul className="mt-6 hidden flex-wrap gap-2 sm:flex">
             {(locale === "ar" ? ["لون واحد", "لونان", "كامل الألوان", "ورنيش", "سلوفان"] : ["1 colour", "2 colours", "Full colour", "Varnish", "Lamination"]).map((c) => (
               <li key={c} className="rounded-[22.5px] border border-cream/40 px-3 py-1.5 text-xs font-medium text-cream/85">
                 {c}
@@ -297,12 +298,20 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
 
         {/* 9 — giant word on daylight + facts */}
         <div ref={lightLayer} className="absolute inset-0">
-          <Chapter range={[16.1, 16.45, 17.3, 17.7]} className="inset-x-0 top-[22vh] px-4 sm:px-8" rise={0}>
+          <Chapter range={[16.1, 16.45, 17.3, 17.7]} className="inset-x-0 top-[13vh] px-4 sm:px-8" rise={0}>
             <p className="eyebrow mb-2 text-sm font-medium opacity-70 sm:text-base">{st.wordEyebrow}</p>
             <p className="display text-[clamp(56px,13vw,230px)] leading-[0.85] font-semibold tracking-[0.01em] whitespace-nowrap">
               <KineticText text={st.word} range={[16.05, 16.7]} />
             </p>
-            <p className="mx-auto mt-8 max-w-md text-center text-[15px] leading-relaxed opacity-80 sm:text-[18px]">{st.wordBody}</p>
+            <p className="mx-auto mt-5 max-w-md text-center text-[15px] leading-relaxed opacity-80 sm:mt-6 sm:text-[18px]">{st.wordBody}</p>
+            <div className="mt-5 flex justify-center sm:mt-6">
+              <Link
+                href={`${b}/studio`}
+                className="display rounded-full bg-[#100904] px-9 py-4 text-[22px] font-bold text-[#FFE9B8] shadow-[0_14px_40px_rgba(16,9,4,0.35)] transition-transform duration-300 hover:scale-105 focus-visible:scale-105 sm:px-14 sm:py-5 sm:text-[32px]"
+              >
+                {t.home.ctaDesign}
+              </Link>
+            </div>
           </Chapter>
           <Chapter range={[16.6, 16.95, 17.3, 17.7]} className="inset-x-4 bottom-16 sm:inset-x-8">
             <ul className="grid grid-cols-2 gap-[18px] md:grid-cols-4">

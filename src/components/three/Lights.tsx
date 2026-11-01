@@ -11,3 +11,14 @@ export function DarkroomLights() {
     </>
   );
 }
+
+/** Neutral daylight for the design studio, so the colours on screen are the colours of the design. */
+export function StudioLights() {
+  return (
+    <>
+      <directionalLight position={[4, 7, 5]} intensity={1.9} color="#ffffff" />
+      <directionalLight position={[-5, 3, 3]} intensity={1.2} color="#ffffff" />
+      <directionalLight position={[0, 3, -6]} intensity={0.9} color="#ffffff" />
+    </>
+  );
+}

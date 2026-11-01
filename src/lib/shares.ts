@@ -27,3 +27,6 @@ export async function purgeExpiredShares(batch = 100) {
   }
   return rows.length;
 }
+
+/** Spent and expired password links serve no purpose; their rows are removed with the same hourly sweep. */
+export const purgeOldResets = () => db.passwordReset.deleteMany({ where: { OR: [{ expiresAt: { lte: new Date() } }, { usedAt: { not: null } }] } });

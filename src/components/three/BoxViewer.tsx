@@ -5,7 +5,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { ContactShadows, Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { BoxModel, modelHeight, type BoxModelProps } from "./BoxModel";
-import { DarkroomLights } from "./Lights";
+import { DarkroomLights, StudioLights } from "./Lights";
 import { hasWebGL } from "@/design/hooks";
 
 export type CameraPreset = "iso" | "front" | "back" | "side" | "top";
@@ -18,7 +18,9 @@ const PRESETS: Record<CameraPreset, [number, number, number]> = {
   top: [0.001, 6.2, 0.6],
 };
 
-function CameraRig({ preset, nonce, controls, targetY }: { preset: CameraPreset; nonce: number; controls: React.RefObject<OrbitControlsImpl | null>; targetY: number }) {
+const OPEN_STEP_BACK = 1.32;
+
+function CameraRig({ preset, nonce, controls, targetY, open }: { preset: CameraPreset; nonce: number; controls: React.RefObject<OrbitControlsImpl | null>; targetY: number; open: boolean }) {
   const { camera } = useThree();
   const invalidate = useThree((s) => s.invalidate);
   // narrow frames need the camera further back, or the product is cut off at the sides
@@ -30,6 +32,16 @@ function CameraRig({ preset, nonce, controls, targetY }: { preset: CameraPreset;
     controls.current?.update();
     invalidate();
   }, [preset, nonce, reach, camera, controls, invalidate]);
+  // an open lid or a pulled drawer takes more room: step back so it stays in frame
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (wasOpen.current === open || !controls.current) return;
+    wasOpen.current = open;
+    const target = controls.current.target;
+    camera.position.sub(target).multiplyScalar(open ? OPEN_STEP_BACK : 1 / OPEN_STEP_BACK).add(target);
+    controls.current.update();
+    invalidate();
+  }, [open, camera, controls, invalidate]);
   useEffect(() => {
     controls.current?.target.set(0, targetY, 0);
     controls.current?.update();
@@ -85,13 +97,13 @@ export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate,
         <Suspense fallback={null}>
           <color attach="background" args={[background ?? (light ? "#f1f2f7" : "#100904")]} />
           <hemisphereLight args={light ? ["#ffffff", "#d9dcea", 1.1] : ["#ffe9d2", "#2a1a10", 0.55]} />
-          <DarkroomLights />
+          {light ? <StudioLights /> : <DarkroomLights />}
           {/* procedural studio reflections (no downloads) so foil and spot UV read correctly */}
           <Environment resolution={128}>
               {/* broad softbox behind the camera: metallic foil needs something bright to mirror */}
-              <Lightformer intensity={2.4} color="#fff0dc" position={[0, 1, 7]} scale={[10, 4, 1]} />
-            <Lightformer intensity={2.2} color="#ffe2c4" position={[0, 4, 3]} scale={[6, 2, 1]} />
-            <Lightformer intensity={1.4} color="#ff9a52" position={[5, 2, -3]} scale={[3, 3, 1]} />
+              <Lightformer intensity={2.4} color={light ? "#ffffff" : "#fff0dc"} position={[0, 1, 7]} scale={[10, 4, 1]} />
+            <Lightformer intensity={2.2} color={light ? "#ffffff" : "#ffe2c4"} position={[0, 4, 3]} scale={[6, 2, 1]} />
+            <Lightformer intensity={1.4} color={light ? "#ffffff" : "#ff9a52"} position={[5, 2, -3]} scale={[3, 3, 1]} />
             <Lightformer intensity={0.6} color="#ffffff" position={[-5, 1, 2]} scale={[2, 4, 1]} />
           </Environment>
           {/* tall bags need headroom for their handles */}
@@ -100,7 +112,7 @@ export default function BoxViewer({ preset = "iso", presetNonce = 0, autoRotate,
           {/* just below the floor: a shadow plane at the floor height z-fights with the inside of open boxes */}
           <ContactShadows key={shadowKey} frames={1} resolution={256} position={[0, -0.006, 0]} opacity={light ? 0.35 : 0.7} scale={9} blur={2.6} far={4} color={light ? "#1d2235" : "#000000"} />
           <OrbitControls ref={controls} makeDefault enabled={interactive} enablePan={false} minDistance={2.5} maxDistance={12} target={[0, targetY, 0]} autoRotate={autoRotate} autoRotateSpeed={3} maxPolarAngle={Math.PI * 0.95} />
-          <CameraRig preset={preset} nonce={presetNonce} controls={controls} targetY={targetY} />
+          <CameraRig preset={preset} nonce={presetNonce} controls={controls} targetY={targetY} open={!!model.lidOpen} />
           <Capture onCanvas={onCanvas} />
         </Suspense>
       </Canvas>

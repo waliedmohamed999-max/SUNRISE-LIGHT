@@ -45,6 +45,8 @@ export function api<P = Record<string, string>>(
   async function run(req: NextRequest, ctx: Ctx<P>): Promise<Response> {
     try {
       assertSameOrigin(req);
+      // every write has a ceiling per address, on top of the stricter limits individual routes set
+      if (req.method !== "GET" && req.method !== "HEAD" && !rateLimit(`writes:${clientIp(req)}`, 600, 60 * 1000)) throw new HttpError(429, "rate_limited");
       if (opts.rate && !rateLimit(`${opts.rate.key}:${clientIp(req)}`, opts.rate.limit, opts.rate.windowMs)) {
         throw new HttpError(429, "rate_limited");
       }

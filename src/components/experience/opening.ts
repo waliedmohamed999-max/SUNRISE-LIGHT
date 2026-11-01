@@ -66,12 +66,17 @@ export const openingCartonScale = () => (openingDone() ? 1 : opening.t < OPENING
 /** Measurement brackets and chapter text wait for the carton. */
 export const openingOverlay = () => ramp(opening.t, OPENING.land[1] - 0.05, OPENING.end);
 
+/** The film frames itself for every screen, so the narrow-screen pull-back only applies once the ball has landed. */
+export const openingPullback = (k: number) => (openingDone() ? k : lerp(1, k, ramp(opening.t, OPENING.drop[0], OPENING.land[1])));
+
 /** Low showroom view, pushing in slowly, settling on the scroll story's first pose as the ball lands. */
-export function openingCamera(pose: CameraPose): CameraPose {
+export function openingCamera(pose: CameraPose, aspect: number): CameraPose {
   if (openingDone()) return pose;
   const t = opening.t;
   const push = ramp(t, 0, OPENING.merge[1]);
-  const start: CameraPose = { pos: [0, lerp(4.6, 3.1, push), lerp(21, 15.5, push)], target: [0, lerp(0.7, 1.7, push), 0] };
+  // a tall screen stands close to the turntable: the products at the front fill the frame while it turns
+  const near = aspect < 1 ? 0.72 : 1;
+  const start: CameraPose = { pos: [0, lerp(4.6, 3.1, push) * near, lerp(21, 15.5, push) * near], target: [0, lerp(0.7, 1.7, push), 0] };
   const k = ramp(t, OPENING.drop[0], OPENING.land[1]);
   // small jolt when the ball hits the floor
   const hit = clamp(1 - (t - OPENING.drop[1]) / 0.35);

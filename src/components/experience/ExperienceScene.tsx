@@ -14,10 +14,10 @@ import { CorrugatedSample, DimensionAnnotations } from "./Corrugated";
 import { FinishLab } from "./FinishLab";
 import { OpeningReel } from "./OpeningReel";
 import { PizzaLid } from "./PizzaLid";
-import { openingCamera, openingOverlay, resetOpening, skipOpening } from "./opening";
+import { openingCamera, openingOverlay, openingPullback, resetOpening, skipOpening } from "./opening";
 import { Environment, Lightformer } from "@react-three/drei";
-import { clamp, timeline } from "./scroll";
-import { backgroundAt, BASE_DIMS, cameraAt, dimsAt, familyAt, groundAt, matAt, MM, sceneAt } from "./story";
+import { clamp, lerp, timeline } from "./scroll";
+import { backgroundAt, BASE_DIMS, cameraAt, dimsAt, familyAt, groundAt, linesAt, matAt, MM, sceneAt } from "./story";
 
 function Rig() {
   const { camera, scene, size } = useThree();
@@ -25,10 +25,13 @@ function Rig() {
   const bg = useMemo(() => new THREE.Color(), []);
   useFrame(() => {
     const s = timeline.screens;
-    const pose = openingCamera(cameraAt(s));
+    const aspect = size.width / size.height;
+    const pose = openingCamera(cameraAt(s), aspect);
     look.set(...pose.target);
-    // poses are framed for wide screens; pull back on narrow/portrait viewports
-    const k = clamp(1.4 / (size.width / size.height), 1, 2.7);
+    // poses are framed for wide screens, so narrow viewports pull back: only as far as a single product needs,
+    // and all the way only for the shots that must show their full width (the flat blank, the family line-up)
+    const fitAll = clamp(1.4 / aspect, 1, 2.7);
+    const k = openingPullback(lerp(1 + (fitAll - 1) * 0.42, fitAll, Math.max(linesAt(s), familyAt(s))));
     camera.position.set(look.x + (pose.pos[0] - look.x) * k, look.y + (pose.pos[1] - look.y) * k, look.z + (pose.pos[2] - look.z) * k);
     camera.lookAt(look);
     const [r, g, b] = backgroundAt(s);

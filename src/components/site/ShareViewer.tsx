@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadImage } from "@/design/render";
 import { Spinner, buttonClass, cx } from "@/components/ui";
 import { BACKDROPS, BackdropPicker } from "@/components/three/Backdrops";
+import { openingFor, openingLabel } from "@/components/three/opening-label";
 import { getEngine } from "@/packaging/engine";
 import type { Dimensions, SurfaceKey } from "@/packaging/types";
 
@@ -26,6 +27,7 @@ export interface ShareSpec {
 export function ShareViewer({ token, spec, locale }: { token: string; spec: ShareSpec; locale: string }) {
   const ar = locale === "ar";
   const engine = getEngine(spec.engineKey);
+  const opening = openingFor(engine.key);
   const host = useRef<HTMLDivElement>(null);
   const [canvases, setCanvases] = useState<Record<SurfaceKey, HTMLCanvasElement> | null>(null);
   const [failed, setFailed] = useState(false);
@@ -87,6 +89,7 @@ export function ShareViewer({ token, spec, locale }: { token: string; spec: Shar
             insideColor={spec.insideColor}
             addons={spec.addons}
             lidOpen={lid}
+            opening={opening}
             autoRotate={spin}
             fallback={<p className="grid h-full place-items-center p-6 text-center text-sm text-cream/70">{ar ? "متصفحك لا يدعم العرض ثلاثي الأبعاد." : "Your browser does not support 3D."}</p>}
           />
@@ -98,9 +101,9 @@ export function ShareViewer({ token, spec, locale }: { token: string; spec: Shar
             <button onClick={() => setSpin((s) => !s)} aria-pressed={spin} className={cx(chip, spin ? "bg-[#E2BC6B] text-black" : "text-cream hover:bg-white/10")}>
               {ar ? "دوران 360°" : "360° spin"}
             </button>
-            {(engine.boxStyle === "mailer" || engine.boxStyle === "tuck") && (
+            {opening && (
               <button onClick={() => setLid((o) => !o)} aria-pressed={lid} className={cx(chip, lid ? "bg-[#E2BC6B] text-black" : "text-cream hover:bg-white/10")}>
-                {ar ? (lid ? "إغلاق" : "فتح") : lid ? "Close" : "Open"}
+                {openingLabel(opening, lid, locale)}
               </button>
             )}
             <BackdropPicker value={backdrop} onChange={setBackdrop} locale={locale} />
