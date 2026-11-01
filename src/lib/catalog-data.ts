@@ -44,7 +44,7 @@ export async function loadCatalog(locale: Locale) {
   const products: CatalogProduct[] = categories.flatMap((c) =>
     c.status !== "ACTIVE"
       ? []
-      : c.templates.map((tp, i) => {
+      : c.templates.map((tp) => {
           const v = tp.currentVersion!;
           const mats = tp.materialRules.filter((r) => r.material.isAvailable);
           return {
@@ -59,7 +59,8 @@ export async function loadCatalog(locale: Locale) {
             limits: { minL: v.minLengthMm, maxL: v.maxLengthMm, minW: v.minWidthMm, maxW: v.maxWidthMm, minH: v.minHeightMm, maxH: v.maxHeightMm },
             printableFaces: v.panels.filter((p) => p.printable).length,
             materials: mats.map((r) => ({ name: ar ? r.material.nameAr : r.material.nameEn, color: r.material.colorHex })),
-            displayColor: mats.length ? mats[i % mats.length].material.colorHex : "#C9A06B",
+            // the catalogue always shows the white house style; customers pick the real board in the studio
+            displayColor: "#FBF9F5",
             validated: v.dielineValidated,
           };
         }),

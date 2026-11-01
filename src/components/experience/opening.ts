@@ -30,15 +30,15 @@ export interface OpeningProduct {
 const p = (engine: string, length: number, width: number, height: number): OpeningProduct => ({ engine, dims: { length, width, height } });
 
 /** One of each product, by department; every department fills the same arc of the turntable. */
-export const DEPARTMENTS: { ar: string; en: string; products: OpeningProduct[] }[] = [
-  { ar: "كراتين الشحن", en: "Shipping cartons", products: [p("rsc", 300, 200, 200), p("rsc", 450, 350, 350), p("rsc", 260, 175, 300)] },
-  { ar: "البيتزا والوجبات", en: "Pizza & meal boxes", products: [p("clamshell", 120, 120, 90), p("pizza", 330, 330, 40), p("clamshell", 230, 180, 70)] },
-  { ar: "الحلويات والتمور", en: "Sweets & dates", products: [p("mailer", 300, 200, 70), p("telescope", 250, 250, 120), p("drawer", 240, 160, 50)] },
-  { ar: "علب الهدايا", en: "Gift boxes", products: [p("drawer", 100, 80, 40), p("telescope", 250, 200, 100), p("telescope", 320, 240, 100)] },
-  { ar: "العطور والتجميل", en: "Perfume & beauty", products: [p("ste", 50, 50, 130), p("ste", 65, 65, 140), p("ste", 30, 30, 95)] },
-  { ar: "الأكياس الورقية", en: "Paper bags", products: [p("bag", 200, 90, 250), p("bag", 260, 120, 330), p("bag", 220, 130, 260)] },
-  { ar: "الأكواب الورقية", en: "Paper cups", products: [p("cup", 90, 60, 112), p("cup", 90, 62, 135), p("cup", 62, 45, 60)] },
-  { ar: "الاستيكر والملصقات", en: "Stickers & labels", products: [p("round", 50, 1, 1), p("sheet", 148, 1, 210), p("sheet", 90, 1, 50)] },
+export const DEPARTMENTS: { products: OpeningProduct[] }[] = [
+  { products: [p("rsc", 300, 200, 200), p("rsc", 450, 350, 350), p("rsc", 260, 175, 300)] },
+  { products: [p("clamshell", 120, 120, 90), p("pizza", 330, 330, 40), p("clamshell", 230, 180, 70)] },
+  { products: [p("mailer", 300, 200, 70), p("telescope", 250, 250, 120), p("drawer", 240, 160, 50)] },
+  { products: [p("drawer", 100, 80, 40), p("telescope", 250, 200, 100), p("telescope", 320, 240, 100)] },
+  { products: [p("ste", 50, 50, 130), p("ste", 65, 65, 140), p("ste", 30, 30, 95)] },
+  { products: [p("bag", 200, 90, 250), p("bag", 260, 120, 330), p("bag", 220, 130, 260)] },
+  { products: [p("cup", 90, 60, 112), p("cup", 90, 62, 135), p("cup", 62, 45, 60)] },
+  { products: [p("round", 50, 1, 1), p("sheet", 148, 1, 210), p("sheet", 90, 1, 50)] },
 ];
 
 const SLOT = (OPENING.turn[1] - OPENING.turn[0]) / DEPARTMENTS.length;
@@ -52,15 +52,6 @@ export function turntableAngle(t: number) {
   const step = Math.floor(x);
   const eased = step + smooth(clamp(((x % 1) - 0.35) / 0.65));
   return -(eased + 1 / 3) * ((Math.PI * 2) / DEPARTMENTS.length);
-}
-
-/** The department on stage and how visible its title is (0..1); null outside the turntable. */
-export function departmentAt(t: number) {
-  if (t < OPENING.turn[0] - 0.3 || t > OPENING.gather[0] + 0.35) return null;
-  const x = turnAt(t) + 0.3;
-  const index = Math.min(DEPARTMENTS.length - 1, Math.floor(x));
-  const local = x - index;
-  return { index, opacity: clamp(Math.min(local * 6, (1 - local) * 6 + (index === DEPARTMENTS.length - 1 ? 3 : 0))) * (1 - ramp(t, OPENING.gather[0], OPENING.gather[0] + 0.35)) };
 }
 
 const backOut = (t: number) => {

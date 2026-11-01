@@ -22,7 +22,7 @@ DATABASE_URL=postgresql://sunrise:...@localhost:5433/sunrise_light npm run db:se
 
 The app container runs `prisma migrate deploy` on start, then `node server.js` (Next.js standalone output). `GET /api/health` returns 200 when the database answers (503 otherwise) and is used by the image `HEALTHCHECK`; point your uptime monitor at it too. On start the server prints `[config]` warnings/errors for missing or unsafe settings and refuses to start in production on a hard error (no database URL, incomplete S3 settings). Uploaded files live in the `uploads` volume mounted at `/app/storage` — back it up together with the database.
 
-Put a TLS-terminating reverse proxy (nginx, Caddy, a cloud load balancer) in front. Session cookies are `Secure` in production, so HTTPS is required. Forward `Host` unchanged (the CSRF check compares `Origin` to `Host`/`X-Forwarded-Host`).
+HTTPS: set `DOMAIN` in `.env`, point the domain at the server and add the bundled Caddy proxy with `docker compose --profile app --profile https up -d --build` (or use your own TLS proxy). Session cookies are `Secure` in production, so HTTPS is required. Forward `Host` unchanged (the CSRF check compares `Origin` to `Host`/`X-Forwarded-Host`).
 
 ## Required configuration
 
@@ -38,7 +38,7 @@ Put a TLS-terminating reverse proxy (nginx, Caddy, a cloud load balancer) in fro
 | `RESEND_API_KEY`, `EMAIL_FROM`, `SALES_TEAM_EMAIL` | Optional. Without them, no email is sent (recorded as `SKIPPED`). |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | First super admin, used only by the seed script. In production the seed refuses passwords shorter than 14 characters or common ones, and never creates a second super admin or overwrites an existing account. |
 | `MFA_ENCRYPTION_KEY` | ≥ 32 random characters; encrypts two-step verification secrets. Keep it in your secret store and back it up — changing it invalidates existing enrolments. |
-| `REQUIRE_STAFF_MFA` | `true` in production: staff must enable two-step verification before opening the dashboard. |
+| `REQUIRE_STAFF_MFA` | On by default in production (needs `MFA_ENCRYPTION_KEY`): staff must enable two-step verification before opening the dashboard. Set `false` only on purpose. |
 | `TRUST_PROXY_HOPS` | Number of reverse proxies in front of the app (default 1). The client IP for rate limits is read that many entries from the right of `X-Forwarded-For`. |
 | `MIGRATION_DATABASE_URL` | Optional owner credentials used only for `prisma migrate deploy`; the runtime `DATABASE_URL` can then be the least-privilege role from `docs/db-least-privilege.sql`. |
 
@@ -71,7 +71,7 @@ Users change their password from *My account → Password* (all other sessions a
 
 Put Redis behind the rate limiter if running more than one instance, add self-service password reset once email is configured, and run a dependency audit (`npm audit --omit=dev`).
 
-Open audit items (October 2026) that need a planned major upgrade with regression testing: **zod 3 → 4** (memory exhaustion on oversized collections — mitigated meanwhile by the 2 MB JSON body limit in `parseJson`), **Next.js 15 → 16** (bundled PostCSS, build-time only) and **Prisma 6 → 7** (`deepmerge-ts` in the CLI config loader, build-time only).
+Open audit items that need a planned major upgrade with regression testing: **Next.js 15 → 16** (bundled PostCSS, build-time only) and **Prisma 6 → 7** (`deepmerge-ts` in the CLI config loader, build-time only).
 
 ## Launch checklist
 
@@ -92,6 +92,5 @@ Work through *Admin → System status* until every line is green or consciously 
 
 1. Factory confirms materials, limits and finishing in the admin; technical team validates each dieline and ticks *Dieline engineering-validated*.
 2. Configure the email provider; add password reset and email verification.
-3. Add engines for gift boxes (lid & base), paper bags and paper cups (frustum geometry with curved artwork mapping).
-4. When the factory provides validated pricing rules, implement a calculator that reads `pricing_rules` and show indicative prices next to — not instead of — manual quotations.
-5. Server-side PDF generation as described above.
+3. Enter the factory's real prices in Admin → Automatic pricing (it ships in review mode, so nothing is sent automatically).
+4. Server-side PDF generation as described above.

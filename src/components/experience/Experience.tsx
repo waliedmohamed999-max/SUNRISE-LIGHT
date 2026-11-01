@@ -11,7 +11,7 @@ import { Chapter, DimensionCounter, KineticText, useHorizontalScrub } from "./Ov
 import { Blueprint } from "./Blueprint";
 import { CH, CINEMA_SCREENS, window4 } from "./scroll";
 import { featureAt, finishStageAt, lightAt } from "./story";
-import { DEPARTMENTS, departmentAt, opening, openingOverlay } from "./opening";
+import { openingOverlay } from "./opening";
 
 const ExperienceScene = dynamic(() => import("./ExperienceScene"), { ssr: false });
 
@@ -29,32 +29,6 @@ function useInkFlip(ref: React.RefObject<HTMLElement | null>) {
   useTimelineStyler((s) => {
     if (ref.current) ref.current.style.color = lightAt(s) > 0.5 ? "#100904" : "";
   });
-}
-
-/** The opening film's titles: the department on the turntable, in gold. */
-function OpeningTitles() {
-  const { locale } = useI18n();
-  const ar = locale === "ar";
-  const box = useRef<HTMLDivElement>(null);
-  const name = useRef<HTMLParagraphElement>(null);
-  const count = useRef<HTMLSpanElement>(null);
-  const shown = useRef(-1);
-  useTimelineStyler(() => {
-    const now = departmentAt(opening.t);
-    if (box.current) box.current.style.opacity = String(now?.opacity ?? 0);
-    if (now && now.index !== shown.current) {
-      shown.current = now.index;
-      const dep = DEPARTMENTS[now.index];
-      if (name.current) name.current.textContent = ar ? dep.ar : dep.en;
-      if (count.current) count.current.textContent = `${String(now.index + 1).padStart(2, "0")} / ${String(DEPARTMENTS.length).padStart(2, "0")}`;
-    }
-  });
-  return (
-    <div ref={box} className="absolute inset-x-0 top-[11vh] px-4 text-center" style={{ opacity: 0 }}>
-      <span ref={count} className="serif num block text-xs tracking-[0.3em] text-[#E2BC6B]/80" />
-      <p ref={name} className="display mt-3 bg-gradient-to-b from-[#FFE9B8] via-[#E2BC6B] to-[#A67C2E] bg-clip-text pb-2 text-[clamp(34px,6vw,84px)] leading-tight text-transparent" />
-    </div>
-  );
 }
 
 /** Holds the first line of text back until the opening film has landed. */
@@ -194,7 +168,6 @@ export function Experience({ categories }: { categories: GalleryCategory[] }) {
 
       {/* overlays */}
       <div className="pointer-events-none fixed inset-0 z-10">
-        <OpeningTitles />
         {/* 0 — measured on the mat */}
         <AfterOpening>
           <Chapter range={[-1, -0.5, 0.2, 0.55]} className="inset-x-0 bottom-14 flex justify-center px-4 text-center">
