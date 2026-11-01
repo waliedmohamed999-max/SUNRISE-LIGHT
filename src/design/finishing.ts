@@ -38,6 +38,16 @@ export const GROUP_LABELS: Record<FinishingGroup, { ar: string; en: string; hint
   note: { ar: "ملاحظات للمصنع", en: "Factory notes", hint: { ar: "لا تغيّر الشكل — تُرسل مع طلب السعر", en: "No visual change — sent with the quote request" } },
 };
 
+/** Add-ons that make no sense on a structure: a bag has no inside to fit foam in, a tray has no lid to tie or tear. */
+const NOT_FOR: Partial<Record<BoxStyle, string[]>> = {
+  bag: ["foam-insert", "inserts", "satin-ribbon", "tear-strip", "vent-holes", "magnetic-closure"],
+  open: ["satin-ribbon", "tear-strip", "magnetic-closure"],
+};
+export const finishingApplies = (code: string, boxStyle: BoxStyle) => !NOT_FOR[boxStyle]?.includes(code);
+
+/** Add-ons you only see inside the box: choosing one opens the box in the 3D view. */
+export const INSIDE_CODES = ["foam-insert", "inserts", "inside-print"];
+
 export function finishingGroup(code: string): FinishingGroup {
   if (code in SURFACE_FINISHING) return "surface";
   if (code in DECOR_FINISHING) return "decor";
