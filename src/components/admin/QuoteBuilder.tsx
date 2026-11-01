@@ -178,7 +178,7 @@ export function QuoteBuilder(p: Props) {
         </p>
       )}
 
-      <div className="grid xl:grid-cols-[1fr_340px]">
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8 p-6">
           {/* lines */}
           <section>

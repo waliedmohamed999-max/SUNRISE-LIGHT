@@ -215,6 +215,16 @@ const design = (await a("/api/designs", { method: "POST", json: { name: "Sec des
   check((await fetch(`${BASE}/ar/view/not-a-real-token-at-all-000000`)).status === 404, "unknown links are not found");
 }
 
+/* ───────── password recovery ───────── */
+{
+  const known = await anon("/api/auth/forgot", { method: "POST", json: { email: process.env.ADMIN_EMAIL ?? "nobody@example.com" } });
+  const unknown = await anon("/api/auth/forgot", { method: "POST", json: { email: `no-account-${Date.now()}@example.com` } });
+  check(known.status === 200 && unknown.status === 200 && JSON.stringify(known.data) === JSON.stringify(unknown.data), "recovery gives the same answer whether or not the email exists");
+  check((await anon("/api/auth/reset", { method: "POST", json: { token: "x".repeat(43), password: "Long-Enough-Password-99" } })).status === 400, "a made-up recovery token is refused");
+  const noSize = await fetch(`${BASE}/api/assets`, { method: "POST", headers: { Origin: BASE }, body: new ReadableStream({ start(c) { c.enqueue(new Uint8Array(4)); c.close(); } }), duplex: "half" });
+  check(noSize.status === 401 || noSize.status === 411, "uploads without a declared size are refused");
+}
+
 /* ───────── automatic pricing ───────── */
 {
   const est = { designId: design.id, quantity: 1000, materialCode: "corrugated-kraft", finishingCodes: [] };

@@ -115,7 +115,8 @@ export function TemplatesPanel() {
                       active ? "border-sun bg-sun-100/60 ring-2 ring-sun/30" : "border-navy/10 bg-white hover:-translate-y-0.5 hover:border-navy/30 hover:shadow-sm",
                     )}
                   >
-                    <TemplateGlyph engineKey={tpl.engineKey} className="size-16 bg-paper p-2 transition group-hover:scale-105" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/products/${tpl.code}.webp`} alt="" loading="lazy" className="h-16 w-20 object-contain transition group-hover:scale-105" />
                     <span className="mt-2 line-clamp-2 text-[12px] leading-tight font-semibold text-navy">{locale === "ar" ? tpl.nameAr : tpl.nameEn}</span>
                     <span className="num mt-1 text-[10px] text-ink-500">
                       {tpl.version.defaults.length}×{tpl.version.defaults.width}×{tpl.version.defaults.height}

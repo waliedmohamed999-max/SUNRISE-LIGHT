@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { HttpError, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { loadDesignFor } from "@/lib/designs";
+import { can } from "@/lib/rbac";
 import { shareExpiry } from "@/lib/shares";
 import { storage } from "@/lib/storage";
 import { inspectImage, UploadRejected } from "@/lib/upload-security";
@@ -29,7 +30,10 @@ export const POST = api<{ id: string }>(
     const { id } = await params;
     const user = await requireUser();
     const design = await loadDesignFor(user, id, "write");
-    if (Number(req.headers.get("content-length") || 0) > MAX_BODY_BYTES) throw new HttpError(413, "too_large");
+    const len = Number(req.headers.get("content-length") || 0);
+    // a body without a declared size could not be refused before it is read into memory
+    if (!len) throw new HttpError(411, "length_required");
+    if (len > MAX_BODY_BYTES) throw new HttpError(413, "too_large");
 
     const doc = designDocumentSchema.parse(design.document);
     const template = await db.packagingTemplate.findUniqueOrThrow({ where: { id: design.templateId }, select: { engineKey: true, nameAr: true, nameEn: true } });
@@ -84,7 +88,8 @@ export const POST = api<{ id: string }>(
 export const DELETE = api<{ id: string }>(async (req, { params }) => {
   const { id } = await params;
   const user = await requireUser();
-  const design = await loadDesignFor(user, id, "write");
+  // the owner, or the factory staff who oversee customer designs
+  const design = await loadDesignFor(user, id, can(user.role, "customer.view") ? "read" : "write");
   const share = await db.designShare.findUnique({ where: { projectId: design.id } });
   if (share && !share.revokedAt) {
     await db.designShare.update({ where: { id: share.id }, data: { revokedAt: new Date(), surfaces: {} } });

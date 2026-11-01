@@ -86,6 +86,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       <Field label={t.auth.email}>
         <input name="email" type="email" required dir="ltr" autoComplete="email" className={inputClass} />
       </Field>
+      {mode === "login" && (
+        <Link href={`/${locale}/forgot-password`} className="float-end -mb-1 text-xs font-medium text-sun hover:underline">
+          {locale === "ar" ? "نسيت كلمة المرور؟" : "Forgot your password?"}
+        </Link>
+      )}
       <Field label={t.auth.password} hint={mode === "register" ? t.auth.passwordHint : undefined}>
         <div className="relative">
           <input

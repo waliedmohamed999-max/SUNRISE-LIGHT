@@ -14,6 +14,9 @@ export type FinishMaps = Partial<Record<SurfaceKey, { rough: HTMLCanvasElement; 
  * Orientation conventions are documented in src/packaging/types.ts (SurfaceKey).
  * Units: the longest edge is normalised to `size` scene units.
  */
+/** How each structure opens: hinged lid, carton flaps, lid lifted off the base, or a drawer sliding out of its sleeve. */
+export type BoxOpening = "hinge" | "flaps" | "lift" | "slide";
+
 export interface BoxModelProps {
   dims: Dimensions;
   boxStyle: BoxStyle;
@@ -22,6 +25,8 @@ export interface BoxModelProps {
   textureVersion: number | Partial<Record<SurfaceKey, number>>;
   materialColor: string;
   lidOpen?: boolean;
+  /** How the box opens; without it a hinged style swings its lid and a closed one has flaps */
+  opening?: BoxOpening | null;
   size?: number;
   /** Optional physical finishes (foil, emboss, spot UV) */
   finishMaps?: FinishMaps | null;
@@ -81,6 +86,7 @@ function Face({
   faceKey,
   onPick,
   selected,
+  uv = [0, 0, 1, 1],
 }: {
   w: number;
   h: number;
@@ -93,7 +99,16 @@ function Face({
   faceKey?: SurfaceKey;
   onPick?: (key: SurfaceKey) => void;
   selected?: boolean;
+  /** Part of the artwork this face shows (u0, v0, u1, v1): a carton flap carries half of the lid's artwork */
+  uv?: [number, number, number, number];
 }) {
+  const [u0, v0, u1, v1] = uv;
+  const plane = useMemo(() => {
+    const g = new THREE.PlaneGeometry(1, 1);
+    g.setAttribute("uv", new THREE.Float32BufferAttribute([u0, v1, u1, v1, u0, v0, u1, v0], 2));
+    return g;
+  }, [u0, v0, u1, v1]);
+  useEffect(() => () => plane.dispose(), [plane]);
   const map = useCanvasTexture(canvas, version);
   const roughnessMap = useCanvasTexture(finish?.rough, version, false);
   const metalnessMap = useCanvasTexture(finish?.metal, version, false);
@@ -104,6 +119,7 @@ function Face({
       <mesh
         castShadow
         receiveShadow
+        geometry={plane}
         scale={[w, h, 1]}
         onClick={
           onPick && faceKey
@@ -116,7 +132,6 @@ function Face({
         onPointerOver={onPick ? () => (document.body.style.cursor = "pointer") : undefined}
         onPointerOut={onPick ? () => (document.body.style.cursor = "") : undefined}
       >
-        <planeGeometry args={[1, 1]} />
         <meshStandardMaterial
           key={finished ? "finished" : "plain"}
           map={map ?? undefined}
@@ -130,8 +145,7 @@ function Face({
           side={THREE.FrontSide}
         />
       </mesh>
-      <mesh scale={[w, h, 1]}>
-        <planeGeometry args={[1, 1]} />
+      <mesh geometry={plane} scale={[w, h, 1]}>
         <meshStandardMaterial color={inside} roughness={0.95} side={THREE.BackSide} />
       </mesh>
       {selected && <Outline w={w} h={h} />}
@@ -327,7 +341,33 @@ export function BoxModel(props: BoxModelProps) {
   return <BoxBody {...props} />;
 }
 
-function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidOpen = false, size = 2.6, finishMaps, insideColor, onFaceClick, selectedFace, addons = [] }: BoxModelProps) {
+const FLAP_ANGLE = Math.PI * 0.72;
+
+/** The inner tray of a drawer box, drawn from its end panel back into the sleeve. */
+function DrawerTray({ L, W, H, color }: { L: number; W: number; H: number; color: string }) {
+  const wall = H * 0.86;
+  const material = <meshStandardMaterial color={color} roughness={0.85} side={THREE.DoubleSide} />;
+  return (
+    <group position={[L / 2, -H / 2 + wall / 2 + 0.004, 0]}>
+      <mesh position={[-L * 0.49, -wall / 2, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[L * 0.98, W * 0.96]} />
+        {material}
+      </mesh>
+      {[1, -1].map((side) => (
+        <mesh key={side} position={[-L * 0.49, 0, (side * W * 0.96) / 2]}>
+          <planeGeometry args={[L * 0.98, wall]} />
+          {material}
+        </mesh>
+      ))}
+      <mesh position={[-L * 0.98, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[W * 0.96, wall]} />
+        {material}
+      </mesh>
+    </group>
+  );
+}
+
+function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidOpen = false, opening, size = 2.6, finishMaps, insideColor, onFaceClick, selectedFace, addons = [] }: BoxModelProps) {
   const openTop = OPEN_TOP.includes(boxStyle);
   const k = size / Math.max(dims.length, dims.width, dims.height);
   const L = dims.length * k;
@@ -336,17 +376,38 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
   const inside = useMemo(() => insideColor ?? new THREE.Color(materialColor).multiplyScalar(0.82).getStyle(), [materialColor, insideColor]);
   const pick = (k: SurfaceKey) => ({ faceKey: k, onPick: onFaceClick, selected: selectedFace === k });
   const lidRef = useRef<THREE.Group>(null);
-  const hinged = boxStyle === "mailer" || boxStyle === "tuck";
+  const skirtRef = useRef<THREE.Group>(null);
+  const slideRef = useRef<THREE.Group>(null);
+  const flapRefs = useRef<(THREE.Group | null)[]>([]);
+  const progress = useRef(0);
+  const kind: BoxOpening = opening ?? (boxStyle === "mailer" || boxStyle === "tuck" ? "hinge" : "flaps");
 
   const invalidate = useThree((s) => s.invalidate);
   // on-demand rendering: kick a frame when the lid state changes, keep requesting until it settles
   useEffect(() => invalidate(), [lidOpen, invalidate]);
   useFrame((state, dt) => {
-    if (!lidRef.current) return;
-    const target = hinged && lidOpen ? -Math.PI * 0.62 : 0;
-    const cur = lidRef.current.rotation.x;
-    if (Math.abs(target - cur) < 0.0005) return;
-    lidRef.current.rotation.x = cur + (target - cur) * Math.min(1, dt * 6);
+    if (openTop) return;
+    const target = lidOpen ? 1 : 0;
+    if (Math.abs(target - progress.current) < 0.0005) return;
+    const p = (progress.current += (target - progress.current) * Math.min(1, dt * 5));
+    const lid = lidRef.current;
+    if (kind === "hinge" && lid) lid.rotation.x = -Math.PI * 0.62 * p;
+    if (kind === "lift" && lid) {
+      lid.position.set(p * L * 0.1, H / 2 + p * H * 0.8, -W / 2);
+      lid.rotation.z = -0.1 * p;
+      if (skirtRef.current) skirtRef.current.visible = p > 0.01;
+    }
+    if (kind === "slide" && slideRef.current) slideRef.current.position.x = p * L * 0.55;
+    if (kind === "flaps") {
+      // the long flaps fold back first, then the short ones under them
+      const long = Math.min(1, p / 0.6) * FLAP_ANGLE;
+      const short = Math.max(0, (p - 0.35) / 0.65) * FLAP_ANGLE;
+      const [front, back, left, right] = flapRefs.current;
+      if (front) front.rotation.x = long;
+      if (back) back.rotation.x = -long;
+      if (left) left.rotation.z = short;
+      if (right) right.rotation.z = -short;
+    }
     state.invalidate();
   });
 
@@ -361,7 +422,11 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
     <group position={[0, H / 2, 0]}>
       <Face w={L} h={H} canvas={c.front} finish={fm.front} version={v("front")} inside={inside} position={[0, 0, W / 2]} rotation={[0, 0, 0]} {...pick("front")} />
       <Face w={L} h={H} canvas={c.back} finish={fm.back} version={v("back")} inside={inside} position={[0, 0, -W / 2]} rotation={[0, Math.PI, 0]} {...pick("back")} />
-      <Face w={W} h={H} canvas={c.right} finish={fm.right} version={v("right")} inside={inside} position={[L / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]} {...pick("right")} />
+      {/* a drawer's end panel pulls out with the tray behind it */}
+      <group ref={slideRef}>
+        <Face w={W} h={H} canvas={c.right} finish={fm.right} version={v("right")} inside={inside} position={[L / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]} {...pick("right")} />
+        {kind === "slide" && !openTop && <DrawerTray L={L} W={W} H={H} color={inside} />}
+      </group>
       <Face w={W} h={H} canvas={c.left} finish={fm.left} version={v("left")} inside={inside} position={[-L / 2, 0, 0]} rotation={[0, -Math.PI / 2, 0]} {...pick("left")} />
       <Face w={L} h={W} canvas={c.bottom} finish={fm.bottom} version={v("bottom")} inside={inside} position={[0, -H / 2, 0]} rotation={[Math.PI / 2, 0, 0]} {...pick("bottom")} />
       {openTop ? (
@@ -371,15 +436,63 @@ function BoxBody({ dims, boxStyle, canvases, textureVersion, materialColor, lidO
             <Handle L={L} H={H} z={-W / 2 + 0.002} color={materialColor} ribbon={addons.includes("ribbon-handles")} />
           </>
         )
+      ) : kind === "flaps" ? (
+        <>
+          {/* the two long flaps meet along the middle and share the top artwork */}
+          <group ref={(g) => void (flapRefs.current[0] = g)} position={[0, H / 2, W / 2]}>
+            <Face w={L} h={W / 2} uv={[0, 0, 1, 0.5]} canvas={c.top} finish={fm.top} version={v("top")} inside={inside} position={[0, 0.0005, -W / 4]} rotation={[-Math.PI / 2, 0, 0]} {...pick("top")} />
+          </group>
+          <group ref={(g) => void (flapRefs.current[1] = g)} position={[0, H / 2, -W / 2]}>
+            <Face w={L} h={W / 2} uv={[0, 0.5, 1, 1]} canvas={c.top} finish={fm.top} version={v("top")} inside={inside} position={[0, 0.0005, W / 4]} rotation={[-Math.PI / 2, 0, 0]} {...pick("top")} />
+          </group>
+          {/* the short flaps sit underneath */}
+          {[-1, 1].map((side, i) => {
+            const depth = Math.min(W, L) / 2;
+            return (
+              <group key={side} ref={(g) => void (flapRefs.current[2 + i] = g)} position={[(side * L) / 2, H / 2 - 0.003, 0]}>
+                <mesh position={[(-side * depth) / 2, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                  <planeGeometry args={[depth, W]} />
+                  <meshStandardMaterial color={inside} roughness={0.9} side={THREE.DoubleSide} />
+                </mesh>
+              </group>
+            );
+          })}
+          {!lidOpen && (
+            <mesh position={[0, H / 2 + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[L, Math.max(0.004, size * 0.002)]} />
+              <meshBasicMaterial color="#100904" transparent opacity={0.3} />
+            </mesh>
+          )}
+        </>
       ) : (
-        /* Top / lid hinges along the back-top edge */
+        /* Top / lid hinges along the back-top edge; a lift-off lid carries its rim with it */
         <group ref={lidRef} position={[0, H / 2, -W / 2]}>
           <Face w={L} h={W} canvas={c.top} finish={fm.top} version={v("top")} inside={inside} position={[0, 0.0005, W / 2]} rotation={[-Math.PI / 2, 0, 0]} {...pick("top")} />
           {addons.includes("satin-ribbon") && <Bow L={L} W={W} />}
+          {kind === "lift" && (
+            <group ref={skirtRef} visible={false} position={[0, -H * 0.15, W / 2]}>
+              {[
+                { p: [0, 0, W / 2], w: L, r: 0 },
+                { p: [0, 0, -W / 2], w: L, r: 0 },
+                { p: [L / 2, 0, 0], w: W, r: Math.PI / 2 },
+                { p: [-L / 2, 0, 0], w: W, r: Math.PI / 2 },
+              ].map((s, i) => (
+                <mesh key={i} position={s.p as [number, number, number]} rotation={[0, s.r, 0]}>
+                  <planeGeometry args={[s.w, H * 0.3]} />
+                  <meshStandardMaterial color={materialColor} roughness={0.8} side={THREE.DoubleSide} />
+                </mesh>
+              ))}
+            </group>
+          )}
         </group>
       )}
       {boxStyle !== "bag" && addons.includes("foam-insert") && <Insert L={L} W={W} H={H} kind="foam" color={inside} />}
       {boxStyle !== "bag" && !addons.includes("foam-insert") && addons.includes("inserts") && <Insert L={L} W={W} H={H} kind="partitions" color={inside} />}
+      {!lidOpen && kind === "lift" && !openTop && (
+        <lineSegments geometry={edges} position={[0, H * 0.2, 0]} scale={[L * 1.002, 0.0001, W * 1.002]}>
+          <lineBasicMaterial color="#100904" transparent opacity={0.3} />
+        </lineSegments>
+      )}
       {!lidOpen && !openTop && (
         <lineSegments geometry={edges} scale={[L, H, W]}>
           <lineBasicMaterial color="#100904" transparent opacity={0.35} />

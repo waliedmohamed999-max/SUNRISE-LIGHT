@@ -12,8 +12,8 @@ export async function register() {
   }
   // this exact condition lets the bundler leave server-only code out of the edge build
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { purgeExpiredShares } = await import("@/lib/shares");
-    const purge = () => purgeExpiredShares().catch((e) => console.error("[shares] purge failed", e));
+    const { purgeExpiredShares, purgeOldResets } = await import("@/lib/shares");
+    const purge = () => Promise.all([purgeExpiredShares(), purgeOldResets()]).catch((e) => console.error("[cleanup] failed", e));
     void purge();
     setInterval(purge, HOUR).unref();
   }

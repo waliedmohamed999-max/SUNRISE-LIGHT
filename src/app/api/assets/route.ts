@@ -15,6 +15,8 @@ export const POST = api(
   async (req) => {
     const user = await requireUser();
     const len = Number(req.headers.get("content-length") || 0);
+    // a body without a declared size could not be refused before it is read into memory
+    if (!len) throw new HttpError(411, "length_required");
     if (len > MAX_BYTES + 64 * 1024) throw new HttpError(413, "too_large");
 
     const form = await req.formData();

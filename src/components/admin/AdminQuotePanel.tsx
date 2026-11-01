@@ -135,6 +135,46 @@ export function JsonDownload({ doc, name, label }: { doc: DesignDocument; name: 
   );
 }
 
+/** The design's public 3D link, as the dashboard sees it: state, reach, and a way to stop it. */
+export function ShareLinkCard({ designId, token, views, expiresAt, active }: { designId: string; token: string; views: number; expiresAt: string; active: boolean }) {
+  const { locale } = useI18n();
+  const ar = locale === "ar";
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const url = `/${locale}/view/${token}`;
+  return (
+    <Card className="p-6">
+      <h2 className="mb-3 font-semibold text-navy">{ar ? "رابط المعاينة 3D" : "3D preview link"}</h2>
+      <p className="text-sm text-ink-500">
+        {active ? (ar ? "يعمل حتى " : "Open until ") : ar ? "منتهي منذ " : "Expired on "}
+        <span className="num text-ink">{new Date(expiresAt).toLocaleDateString(ar ? "ar-EG" : "en-GB")}</span>
+        {ar ? " · المشاهدات: " : " · Views: "}
+        <span className="num text-ink">{views}</span>
+      </p>
+      {active && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a href={url} target="_blank" rel="noreferrer" className={buttonClass("outline", "sm")}>
+            {ar ? "فتح" : "Open"}
+          </a>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await fetch(`/api/designs/${designId}/share`, { method: "DELETE" });
+              setBusy(false);
+              router.refresh();
+            }}
+          >
+            {busy ? <Spinner /> : ar ? "إيقاف الرابط" : "Stop link"}
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function AdminDesignViewer({ doc, engineKey, materialColor, previewAssetId }: { doc: DesignDocument; engineKey: string; materialColor: string; previewAssetId: string | null }) {
   const { locale } = useI18n();
   const ar = locale === "ar";

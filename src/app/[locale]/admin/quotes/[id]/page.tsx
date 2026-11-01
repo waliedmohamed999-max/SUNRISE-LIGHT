@@ -79,8 +79,8 @@ export default async function AdminQuoteDetail({ params }: { params: Promise<{ l
         <StatusBadge status={r.status} locale={locale} />
       </div>
 
-      <div className="grid gap-6 2xl:grid-cols-[1fr_400px]">
-        <div className="space-y-6">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="min-w-0 space-y-6">
           {r.items.map((item) => {
             const doc = designDocumentSchema.safeParse(item.designVersion.document);
             const snap = item.specSnapshot as { template: { engineKey?: string; code?: string } };

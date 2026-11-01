@@ -173,7 +173,7 @@ export function OpeningReel() {
     const merge = ramp(t, OPENING.merge[0], OPENING.merge[1]);
     const turn = turntableAngle(t) - gather * gather * 5.5;
     // the turntable narrows to fit portrait screens
-    const fit = clamp((state.size.width / state.size.height) / 1.15, 0.42, 1);
+    const fit = clamp((state.size.width / state.size.height) / 1.15, 0.68, 1);
     RANGE.forEach((_, i) => {
       const g = items.current[i];
       if (!g) return;
@@ -187,11 +187,11 @@ export function OpeningReel() {
       g.position.set(Math.sin(a) * r, y, Math.cos(a) * r);
       // facing outwards, logo to the room, leaning into the ball's surface as it closes
       g.rotation.set(-Math.asin(lat) * pull, a + 0.2 * (1 - pull), 0, "YXZ");
-      g.scale.setScalar(Math.max(0.0001, enter * lerp(lerp(fit, 1, 0.25), 0.68, pull) * (1 - merge)));
+      g.scale.setScalar(Math.max(0.0001, enter * lerp(lerp(fit, 1, 0.45), 0.68, pull) * (1 - merge)));
       const base = bases.current[i];
       if (base) {
         base.position.set(Math.sin(a) * RING * fit, ground + 0.02, Math.cos(a) * RING * fit);
-        base.scale.setScalar(Math.max(0.0001, lerp(fit, 1, 0.25) * ease((t - 0.1 - order * 0.75) / 0.6) * (1 - ramp(gather, 0, 0.55))));
+        base.scale.setScalar(Math.max(0.0001, lerp(fit, 1, 0.45) * ease((t - 0.1 - order * 0.75) / 0.6) * (1 - ramp(gather, 0, 0.55))));
       }
     });
 

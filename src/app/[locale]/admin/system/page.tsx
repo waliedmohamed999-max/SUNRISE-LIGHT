@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { verifyPassword } from "@/lib/auth";
 import { mfaAvailable } from "@/lib/totp";
 import { staffMfaRequired } from "@/lib/mfa-policy";
+import { getPricing } from "@/lib/pricing-store";
 import { getCurrentUser } from "@/lib/auth";
 import { can, STAFF_ROLES } from "@/lib/rbac";
 import type { Locale } from "@/i18n/config";
@@ -53,7 +54,20 @@ export default async function AdminSystem({ params }: { params: Promise<{ locale
   const staffMfa = await db.user.groupBy({ by: ["totpEnabledAt"], where: { role: { in: STAFF_ROLES }, isActive: true }, _count: true });
   const staffTotal = staffMfa.reduce((a, g) => a + g._count, 0);
   const staffWithMfa = staffMfa.filter((g) => g.totpEnabledAt).reduce((a, g) => a + g._count, 0);
+  const pricing = await getPricing();
+  const trialPrices = /تجريبي|trial|demo/i.test(pricing.terms);
+  const [openLinks, autoSendRisk] = [await db.designShare.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }), pricing.enabled && pricing.mode === "auto-send" && trialPrices];
   const checks: Check[] = [
+    {
+      label: ar ? "أسعار المصنع" : "Factory prices",
+      ok: autoSendRisk ? false : trialPrices ? null : true,
+      detail: trialPrices
+        ? autoSendRisk
+          ? ar ? "أسعار تجريبية مع إرسال تلقائي — العميل سيستلم عروضًا غير صحيحة، حوّلها للمراجعة فورًا" : "Trial prices with auto-send: customers would get wrong quotes, switch to review now"
+          : ar ? "الأسعار الحالية تجريبية — أدخل أسعار المصنع من «التسعير التلقائي». الوضع: مراجعة قبل الإرسال" : "Trial prices: enter the factory's prices in Automatic pricing. Mode: review before sending"
+        : ar ? `الوضع: ${pricing.mode === "review" ? "مراجعة قبل الإرسال" : "إرسال تلقائي"}` : `Mode: ${pricing.mode}`,
+    },
+    { label: ar ? "روابط المعاينة 3D" : "3D preview links", ok: true, detail: ar ? `${openLinks} رابط مفتوح · تنتهي بعد 10 أيام وتُحذف صورها تلقائيًا` : `${openLinks} open · expire after 10 days and their images are removed automatically` },
     {
       label: ar ? "التحقق بخطوتين لفريق المصنع" : "Staff two-step verification",
       ok: !mfaAvailable() ? false : staffWithMfa === staffTotal ? true : null,

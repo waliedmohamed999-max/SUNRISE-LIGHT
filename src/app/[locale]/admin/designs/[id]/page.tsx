@@ -16,7 +16,7 @@ const FACE_LABELS: Record<string, { ar: string; en: string }> = {
 };
 import { Badge, Card } from "@/components/ui";
 import { fmtDate, StatusBadge } from "@/components/site/StatusBadge";
-import { AdminDesignViewer, JsonDownload } from "@/components/admin/AdminQuotePanel";
+import { AdminDesignViewer, JsonDownload, ShareLinkCard } from "@/components/admin/AdminQuotePanel";
 
 export default async function AdminDesign({ params }: { params: Promise<{ locale: Locale; id: string }> }) {
   const { locale, id } = await params;
@@ -27,6 +27,7 @@ export default async function AdminDesign({ params }: { params: Promise<{ locale
     where: { id },
     include: {
       owner: { select: { id: true, name: true, email: true, phone: true } },
+      share: { select: { token: true, views: true, expiresAt: true, revokedAt: true } },
       template: { select: { code: true, engineKey: true, nameAr: true, nameEn: true } },
       templateVersion: { select: { version: true, dielineValidated: true } },
       versions: { orderBy: { versionNo: "desc" }, take: 20, select: { id: true, versionNo: true, note: true, createdAt: true } },
@@ -83,6 +84,9 @@ export default async function AdminDesign({ params }: { params: Promise<{ locale
           )}
         </Card>
         <div className="space-y-6">
+          {d.share && !d.share.revokedAt && (
+            <ShareLinkCard designId={d.id} token={d.share.token} views={d.share.views} expiresAt={d.share.expiresAt.toISOString()} active={d.share.expiresAt > new Date()} />
+          )}
           <Card className="p-6">
             <h2 className="mb-3 font-semibold text-navy">{ar ? "العميل" : "Customer"}</h2>
             <p className="text-sm font-medium text-ink">{d.owner.name}</p>

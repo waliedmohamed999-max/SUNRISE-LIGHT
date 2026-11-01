@@ -7,7 +7,7 @@ import { useI18n } from "@/i18n/client";
 export function WhatsAppFab({ href }: { href: string | null }) {
   const pathname = usePathname();
   const { locale } = useI18n();
-  if (!href || /^\/(ar|en)\/(admin|studio|login|register)(\/|$)/.test(pathname)) return null;
+  if (!href || /^\/(ar|en)\/(admin|studio|login|register|forgot-password|reset-password)(\/|$)/.test(pathname)) return null;
   return (
     <a
       href={href}
